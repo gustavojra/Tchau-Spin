@@ -63,7 +63,7 @@ class collection:
         if other == 0:
             return self
 
-        elif type(other) == fock_rhf or type(other) == ERI:
+        elif isinstance(other, Tensor):
 
             newterms = self.terms[:]
             newterms.append(other)
@@ -89,15 +89,21 @@ class collection:
         return out
 
 
-class fock_rhf:
+class Tensor:
 
-    # Object that represents a fock matrix for restricted orbitals
+    # General tensor representation, also base class for specific tensor as Fock, ERI and Amplitudes
 
-    def __init__(self, index_1, index_2, prefac=1):
+    def __init__(self, name, *argv, prefac=1):
+        self.idx = [] 
+        for index in argv:
+            self.idx.append(index)
 
-        self.idx = [index_1, index_2]
         self.prefac = prefac
+        self.name = name
 
+    def copy(self):
+
+        return Tensor(self.name, *self.idx, prefac=self.prefac)
 
     def __add__(self, other):
 
@@ -110,16 +116,40 @@ class fock_rhf:
     def __mul__(self, other):
 
         if type(other) == float or type(other) == int:
-            
-            return fock_rhf(self.idx[0], self.idx[1], prefac = self.prefac*other)
+
+            out = self.copy()
+            out.prefac = out.prefac*other
+            return out
 
         else:
 
-            raise TypeError('Addition undefined for fock and {}'.format(type(other)))
+            raise TypeError('Multiplication undefined for {} and {}'.format(type(self),type(other)))
 
     def __rmul__(self, other):
 
         return self*other
+
+    def __str__(self):
+
+        out = str(self.prefac) + '*' + str(self.name) + '('
+        for i in self.idx:
+            out += str(i)
+        out += ')'
+
+        return out
+
+class fock_rhf(Tensor):
+
+    # Object that represents a fock matrix for restricted orbitals
+
+    def __init__(self, index_1, index_2, prefac=1):
+
+        self.idx = [index_1, index_2]
+        self.prefac = prefac
+
+    def copy(self):
+
+        return fock_rhf(*self.idx, prefac=self.prefac)
 
     def __str__(self):
 
@@ -178,48 +208,22 @@ class fock_rhf:
 
             pass
 
-class ERI:
+class ERI(Tensor):
 
     def __init__(self, p, q, r, s, prefac=1):
 
         self.idx = [p,q,r,s]
         self.prefac = prefac
 
-    def __add__(self, other):
+    def copy(self):
 
-        # Addition: first put self into a collection, then call collectin addition method
-        
-        c = collection() + self
-
-        return c + other
-
-    def __mul__(self, other):
-
-        if type(other) == float or type(other) == int:
-
-            [p,q,r,s] = self.idx
-            
-            return ERI(p,q,r,s,prefac = self.prefac*other)
-
-        else:
-
-            raise TypeError('Addition undefined for ERI and {}'.format(type(other)))
-
-    def __rmul__(self, other):
-
-        return self*other
+        return ERI(*self.idx, prefac=self.prefac)
 
     def __str__(self):
 
         [p,q,r,s] = self.idx
 
-        if self.prefac == -1:
-            return '-<' +  str(p) + str(q) + '|' + str(r) + str(s) + '>'
-
-        elif self.prefac == 1:
-            return '<' +  str(p) + str(q) + '|' + str(r) + str(s) + '>'
-
-        return str(self.prefac) + '<' +  str(p) + str(q) + '|' + str(r) + str(s) + '>'
+        return str(self.prefac) + '*<' +  str(p) + str(q) + '|' + str(r) + str(s) + '>'
 
     def expand_spin(self):
 
@@ -264,7 +268,7 @@ class ERI:
 
         return out
                 
-class Amplitude:
+class Amplitude(Tensor):
 
     def __init__(self, *argv, prefac=1):
 
@@ -277,6 +281,10 @@ class Amplitude:
 
         self.rank = int(len(self.idx)/2)
         self.prefac = prefac
+
+    def copy(self):
+
+        return Amplitude(*self.idx, prefac=self.prefac)
 
     def __str__(self):
 
