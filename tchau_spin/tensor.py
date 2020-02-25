@@ -320,10 +320,13 @@ class Amplitude(Tensor):
     def adapt(self):
 
         # Adapt amplitudes to a stardard form
-        # I have chosen the standard for to be the one where alpha and beta indixes are alternated
-        # e.g for T2 mixed spin case: (Ij->Ab) is the standard form
-        # e.g for T3 the mixed spin case: (IjK->AbC) is the standard form
+        # This is used to try to reduce the number of spin cases to be considered
 
+        # First check if all spin indexes are defined. If not, raise an error
+        if self.any_undef_spin():
+            raise NameError('Cannot adapt while indexes have undefined spin')
+
+        # Get index for hole and particle spaces
         holes = copy.deepcopy(self.idx[0:self.rank])
         par = copy.deepcopy(self.idx[self.rank:])
 
@@ -333,14 +336,38 @@ class Amplitude(Tensor):
         
         # If number of alphas is greater than alpha and RHF is True perform spin flip
         # This allow us to have the maximum number of amplitudes in a standard form
-        
         if nbeta > nalpha and self.rhf:
             return self.flip().adapt()
 
+        # If the Amplitude is composed of all alpha indexes and RHF is true, then
+        # we can write it as a linear combination of mixed spin cases
+        # e.g. IJ->AB   can be expressed as Ij->Ab + iJ->Ab
+        # e.g. IJK->ABC can be expressed as IjK->AbC + iJK->AbC + IJk->AbC
+        # Note that every term will be adapted again, thus the results won't actuall match the example above
+
+        if nbeta == 0 and self.rank > 1 and self.rhf:
+            out = Collection()
+            par[1] = par[1].flip()
+            for i,h in enumerate(holes):
+                newholes = holes[:]
+                newholes[i] = h.flip()
+                newidx = newholes + par
+                out += Amplitude(*newidx, prefac=self.prefac, rhf=self.rhf).adapt()
+            return out
+
+        # If the two tests above fail, then we have a mixed spin case.
+        # The goal here is to reorder the amplitude indexes following antisymmetric rules
+        # such that we have every amplitude in a standard form.
+        # I chose the standard form as alphas and betas alternated. If the number fo alphas
+        # and betas are not the same, the first indexes will be alternating and the final ones
+        # will be the remaining indexes
+        # e.g. iJ->Ab   becomes (-1)*Ji->Ab
+        # e.g. IJk->aBC becomes      IkJ->BaC
+        # e.g. Ijk->aBc becomes (-1)*Ijk->Bac
+        
         factor = 1
         new_holes = []
         new_par = []
-
         while len(holes) > 0:
             # Search for alpha
             perm = 0
