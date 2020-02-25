@@ -1,9 +1,4 @@
 # __init__.py
-import numpy as np
+__all__ = ['Index', 'Collection', 'Tensor', 'Fock', 'ERI', 'Amplitude', 'Contraction']
 from .index import Index
-from .collection import collection
-from .tensor import Tensor
-from .fock import fock
-from .eri import ERI
-from .amplitude import Amplitude
-from .contraction import contraction
+from .tensor import Tensor, Fock, ERI, Amplitude, Collection, Contraction
