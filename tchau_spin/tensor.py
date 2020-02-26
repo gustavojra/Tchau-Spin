@@ -96,10 +96,7 @@ class Tensor:
             return Contraction.contract(self, other)
 
         if isinstance(other, Collection):
-            out = Collection()
-            for X in other:
-                out += self*X
-            return out
+            return other*self
 
         else:
 
@@ -108,6 +105,31 @@ class Tensor:
     def __rmul__(self, other):
 
         return self*other
+
+    def __pow__(self, other):
+
+        # Power of Tensors a spin-free contraction
+        # If the multiplying are not spin defined, expantian will be called first
+
+        if isinstance(other, Tensor):
+
+            if self.any_undef_spin() and other.any_undef_spin():
+                return (self.expand())**(other.expand())
+
+            elif self.any_undef_spin():
+                return (self.expand())**other
+
+            elif other.any_undef_spin():
+                return self**(other.expand())
+
+            return Contraction.spin_free_contract(self, other)
+
+        if isinstance(other, Collection):
+            return other**self
+
+        else:
+
+            raise TypeError('Spin-free Contraction undefined for {} and {}'.format(type(self),type(other)))
 
     def any_undef_spin(self):
 
@@ -208,6 +230,16 @@ class Fock(Tensor):
 
         return out
 
+    def adapt(self):
+
+        # If RHF is true and Fock is beta,beta return alpha,alpha
+        if self.any_undef_spin():
+            raise NameError('Cannot adapt while indexes have undefined spin')
+        if self.idx[0].spin == 'beta' and self.idx[1].spin == 'beta' and self.rhf:
+            return self.flip()
+        else:
+            return self.copy()
+
 class ERI(Tensor):
 
     # Special tensor for the Two-electron integral array. Indices in Physicist's notation
@@ -256,6 +288,17 @@ class ERI(Tensor):
                                 d = self.idx[3].change_spin(s)
                                 out += ERI(a,b,c,d, prefac=self.prefac, rhf=self.rhf)
         return out
+
+    def adapt(self):
+    
+        # If all indexes are have beta spin and rhf is true, then flip spin
+        if self.any_undef_spin():
+            raise NameError('Cannot adapt while indexes have undefined spin')
+        nalpha = np.sum(np.array([x.s for x in self.idx]))
+        if nalpha == 0 and self.rhf:
+            return self.flip()
+        else:
+            return self.copy()
 
 class Amplitude(Tensor):
 
@@ -482,16 +525,40 @@ class Collection:
                 out += X*other 
             return out
 
-        if isinstance(other, Collection):
+        elif isinstance(other, Collection):
             out = Collection()
             for Y in self:
                 for X in other:
                     out += Y*X
             return out
 
+        elif isinstance(other, Tensor):
+            out = Collection()
+            for X in self:
+                out += other*X
+            return out
+
+        else:
+            raise TypeError('Multiplication not defined for Collection and {}'.format(type(other)))
+
     def __rmul__(self, other):
 
         return self*other
+
+    def __pow__(self, other):
+
+        if isinstance(other, Tensor):
+            out = Collection()
+            for X in self:
+                out += other**X
+            return out
+
+        elif isinstance(other, Collection):
+            out = Collection()
+            for Y in self:
+                for X in other:
+                    out += Y**X
+            return out
 
     def __str__(self):
 
@@ -501,6 +568,9 @@ class Collection:
 
         return out
 
+    def __len__(self):
+        return len(self.terms)
+
     def expand(self):
         out = Collection()
         for X in self:
@@ -508,6 +578,12 @@ class Collection:
                 out += X.expand()
             else:
                 out += X
+        return out
+
+    def adapt(self):
+        out = Collection()
+        for X in self:
+            out += X.adapt()
         return out
 
 class Contraction:
@@ -540,12 +616,64 @@ class Contraction:
         else:
             raise TypeError('Contraction not defined for {} and {}'.format(type(A), type(B)))
 
+    @staticmethod
+    def spin_free_contract(A,B):
+
+        # Contract two tensor without analysing valind spin cases
+        # Be careful using this!!
+        if isinstance(A, Tensor) and isinstance(B, Tensor):
+        
+            namesA = [x.name for x in A.idx]
+            namesB = [x.name for x in B.idx]
+
+            internal = []
+            external = []
+            for i in A.idx + B.idx:
+                if i.name in namesA and i.name in namesB:
+                    if i.change_spin(1) not in internal:
+                        # Store every index as alpha
+                        internal.append(i.change_spin(1))
+                else:
+                    external.append(i.change_spin(1))
+            if len(internal) == 0:
+                return 0
+            else:
+                return Contraction(A, B, inter=internal, ext=external, prefac=A.prefac*B.prefac)
+            
+        else:
+            raise TypeError('Contraction not defined for {} and {}'.format(type(A), type(B)))
+
     def __init__(self, *argv, inter, ext, prefac=1):
 
         self.int = inter
         self.ext = ext
         self.prefac = prefac
         self.contracting = list(argv)
+        self.sort()
+
+    def sort(self):
+        
+        # Order terms in the contracting according to rules:
+        # 1) First fock elements
+        # 2) Second amplitudes, from lower to higer ranks
+        # 3) Third, general Tensors other than ERI
+        # 4) ERI
+
+        sortkey = []
+        for c in self.contracting:
+            if type(c) == Fock:
+                sortkey.append('a')
+            elif type(c) == Amplitude:
+                sortkey.append('b' + str(c.rank))
+            elif type(c) == Tensor:
+                sortkey.append('c')
+            elif type(c) == ERI:
+                sortkey.append('d')
+            else:
+                sortkey.append('e')
+        sortkey = np.array(sortkey)
+        key = sortkey.argsort()
+        self.contracting = list(np.array(self.contracting)[key])
 
     def __str__(self):
 
@@ -559,7 +687,22 @@ class Contraction:
 
         if type(other) == float or type(other) == int:
             return Contraction(*self.contracting, inter=self.int, ext=self.ext, prefac=self.prefac*other)
+        else:
+            raise TypeError('Multiplication not defined for Contraction and {}'.format(type(other)))
 
     def __rmul__(self, other):
 
         return self*other
+
+    def adapt(self):
+
+        # Adapt each terms of the contraction
+        newcontracting = []
+        # Put the contracting prefactor in the first contracting term
+        self.contracting[0].prefac = self.prefac
+        out = Collection()
+        out += self.contracting[0].adapt()
+        for c in self.contracting[1:]:
+            c.prefac = 1
+            out = out**(c.adapt())
+        return out
