@@ -41,15 +41,27 @@ class Index:
             return self.name == other.name and self.spin == other.spin
         return False
 
+    def alpha(self):
+
+        # Return a copy of itself with alpha spin
+
+        return Index(self.name, spin='alpha')
+
+    def beta(self):
+
+        # Return a copy of itself with beta spin
+
+        return Index(self.name, spin='beta')
+
     def change_spin(self, s):
 
         # Return a copy of the index with the desired spin (0 for beta, 1 for alpha)
 
         if s == 1:
-            return Index(self.name, spin='alpha')
+            return self.alpha()
 
         elif s == 0:
-            return Index(self.name, spin='beta')
+            return self.beta()
 
         else:
             raise ValueError('Invalid spin input. Must be 0 (for beta) or 1 (for alpha)')
@@ -59,9 +71,9 @@ class Index:
         # Return copy with opposite spin
 
         if self.spin == 'alpha':
-            return Index(self.name, spin='beta')
+            return self.beta()
         elif self.spin == 'beta':
-            return Index(self.name, spin='alpha')
+            return self.alpha()
         else:
             raise NameError('Cannot flip undefined spin')
 

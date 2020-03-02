@@ -130,6 +130,22 @@ class Tensor:
         else:
 
             raise TypeError('Spin-free Contraction undefined for {} and {}'.format(type(self),type(other)))
+    
+    def __eq__(self, other):
+
+        # Two tensor are equal if they share the same type and indexes 
+
+        if type(self) != type(other):
+            return False
+
+        if len(self.idx) != len(other.idx):
+            return False
+
+        for s,o in zip(self.idx, other.idx):
+            if s != o:
+                return False
+
+        return True
 
     def any_undef_spin(self):
 
@@ -617,31 +633,39 @@ class Contraction:
             raise TypeError('Contraction not defined for {} and {}'.format(type(A), type(B)))
 
     @staticmethod
-    def spin_free_contract(A,B):
+    def spin_free_contract(*argv):
 
-        # Contract two tensor without analysing valind spin cases
+        # Contract two tensor without analysing valid spin cases
         # Be careful using this!!
-        if isinstance(A, Tensor) and isinstance(B, Tensor):
-        
-            namesA = [x.name for x in A.idx]
-            namesB = [x.name for x in B.idx]
+        for A in argv:
+            if not isinstance(A, Tensor):
+                raise TypeError('Contraction not defined for {}'.format(type(A)))
 
-            internal = []
-            external = []
-            for i in A.idx + B.idx:
-                if i.name in namesA and i.name in namesB:
-                    if i.change_spin(1) not in internal:
-                        # Store every index as alpha
-                        internal.append(i.change_spin(1))
-                else:
-                    external.append(i.change_spin(1))
-            if len(internal) == 0:
-                return 0
+        names = []
+        indexes = []
+        prefac = 1
+        for A in argv:
+            names += [x.name for x in A.idx]
+            indexes += A.idx
+            prefac *= A.prefac
+
+        internal = []
+        external = []
+        # All indexes are saved as alpha for a spinless contraction
+        for i in indexes:
+            if names.count(i.name) > 1:
+                if i.alpha() not in internal:
+                    internal.append(i.alpha())
             else:
-                return Contraction(A, B, inter=internal, ext=external, prefac=A.prefac*B.prefac)
-            
+                external.append(i.alpha())
+
+        # If one of the contracting elements does not have a index contracting, return 0
+        for A in argv:
+            U = np.intersect1d([x.name for x in A.idx], [x.name for x in internal])
+            if len(U) == 0:
+                return 0
         else:
-            raise TypeError('Contraction not defined for {} and {}'.format(type(A), type(B)))
+            return Contraction(*argv, inter=internal, ext=external, prefac=prefac)
 
     def __init__(self, *argv, inter, ext, prefac=1):
 
@@ -650,6 +674,11 @@ class Contraction:
         self.prefac = prefac
         self.contracting = list(argv)
         self.sort()
+        pf = 1
+        for A in self.contracting:
+            pf *= A.prefac
+            A.prefac = 1
+        self.prefac = pf
 
     def sort(self):
         
