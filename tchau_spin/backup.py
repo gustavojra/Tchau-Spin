@@ -6,7 +6,7 @@ class Tensor:
 
     # General tensor representation, also base class for specific tensor as Fock, ERI and Amplitudes
 
-    def __init__(self, name, *argv, rhf=False):
+    def __init__(self, name, *argv, prefac=1, rhf=False):
         self.rhf = rhf
         self.idx = [] 
         for index in argv:
@@ -14,15 +14,26 @@ class Tensor:
                 raise TypeError('Indexes cannot be {}'.format(type(index)))
             self.idx.append(index)
 
+        if type(prefac) != int and type(prefac) != float:
+            raise TypeError('Prefacor needs to be a number, not a {}'.format(type(prefac)))
+        self.prefac = prefac
+
         if type(name) != str:
             raise TypeError('Name needs to be a string, not a {}'.format(type(name)))
         self.name = name
+
         self.create_repr()
 
 
     def __str__(self):
 
-        return self.repr
+        if self.prefac == -1:
+            return '-' + self.repr
+
+        elif self.prefac == 1:
+            return '+' + self.repr
+
+        return str(self.prefac) +'*' + self.repr
 
     def create_repr(self):
 
@@ -35,7 +46,7 @@ class Tensor:
 
     def copy(self):
 
-        return Tensor(self.name, *self.idx, rhf=self.rhf)
+        return Tensor(self.name, *self.idx, prefac=self.prefac, rhf=self.rhf)
 
     def __add__(self, other):
 
@@ -68,8 +79,9 @@ class Tensor:
 
         if type(other) == float or type(other) == int:
 
-            c = Collection() + self
-            return c*other
+            out = self.copy()
+            out.prefac = out.prefac*other
+            return out
 
         if isinstance(other, Tensor):
 
@@ -122,7 +134,7 @@ class Tensor:
             return other**self
 
         if isinstance(other, Contraction):
-            terms = [self] + other.contracting
+            terms = [other.prefac*self] + other.contracting
             return Contraction.spin_free_contract(*terms)
 
         else:
@@ -186,7 +198,7 @@ class Tensor:
                 newidx = []
                 for i in range(len(it.multi_index)):
                     newidx.append(self.idx[i].change_spin(it.multi_index[i]))
-                out += Tensor(self.name, *newidx)
+                out += Tensor(self.name, *newidx, prefac=self.prefac)
             it.iternext()
     
         return out
@@ -207,13 +219,14 @@ class Fock(Tensor):
 
     # Object that represents a fock matrix for restricted orbitals
 
-    def __init__(self, index_1, index_2, rhf=False):
+    def __init__(self, index_1, index_2, prefac=1, rhf=False):
 
         self.rhf = rhf
         for index in [index_1, index_2]:
             if type(index) != Index:
                 raise TypeError('Indexes cannot be {}'.format(type(index)))
         self.idx = [index_1, index_2]
+        self.prefac = prefac
         self.create_repr()
 
     def copy(self):
@@ -243,7 +256,7 @@ class Fock(Tensor):
                     if p == q:
                         ip = self.idx[0].change_spin(p)
                         iq = self.idx[1].change_spin(q)
-                        out += Fock(ip, iq, rhf=self.rhf)
+                        out += Fock(ip, iq, prefac=self.prefac, rhf=self.rhf)
 
         return out
 
@@ -270,13 +283,14 @@ class ERI(Tensor):
 
         return ERI(p,q,r,s, prefac=prefac, rhf=rhf) - ERI(p,q,s,r, prefac=prefac, rhf=rhf)
 
-    def __init__(self, p, q, r, s, rhf=False):
+    def __init__(self, p, q, r, s, prefac=1, rhf=False):
 
         self.rhf = rhf
         self.idx = [p,q,r,s]
         for index in self.idx:    
             if type(index) != Index:
                 raise TypeError('Indexes cannot be {}'.format(type(index)))
+        self.prefac = prefac      
         self.create_repr()
 
     def copy(self):
@@ -309,7 +323,7 @@ class ERI(Tensor):
                                 b = self.idx[1].change_spin(q)
                                 c = self.idx[2].change_spin(r)
                                 d = self.idx[3].change_spin(s)
-                                out += ERI(a,b,c,d, rhf=self.rhf)
+                                out += ERI(a,b,c,d, prefac=self.prefac, rhf=self.rhf)
         return out
 
     def adapt(self):
@@ -328,7 +342,7 @@ class Amplitude(Tensor):
     # Special tensor to represent coupled cluster amplitudes.
     # First half of index are taken as occupied indexes (below Fermi), second half as virtual indexes (above Fermi)
 
-    def __init__(self, *argv, rhf=False):
+    def __init__(self, *argv, prefac=1, rhf=False):
 
         self.rhf = rhf
         self.idx = [] 
@@ -341,6 +355,7 @@ class Amplitude(Tensor):
             raise NameError('Amplitudes cannot have odd number of indexes')
 
         self.rank = int(len(self.idx)/2)
+        self.prefac = prefac
         self.create_repr()
 
 
@@ -379,7 +394,7 @@ class Amplitude(Tensor):
                     newidx = []
                     for i in range(len(it.multi_index)):
                         newidx.append(self.idx[i].change_spin(it.multi_index[i]))
-                    out += Amplitude(*newidx, rhf=self.rhf)
+                    out += Amplitude(*newidx, prefac=self.prefac, rhf=self.rhf)
             it.iternext() 
 
         return out
@@ -419,7 +434,7 @@ class Amplitude(Tensor):
                 newholes = holes[:]
                 newholes[i] = h.flip()
                 newidx = newholes + par
-                out += Amplitude(*newidx, rhf=self.rhf).adapt()
+                out += Amplitude(*newidx, prefac=self.prefac, rhf=self.rhf).adapt()
             return out
 
         # If the two tests above fail, then we have a mixed spin case.
@@ -476,16 +491,15 @@ class Amplitude(Tensor):
                 perm += 1
     
         idx = new_holes + new_par
-        return factor*Amplitude(*idx, rhf=self.rhf)
+        return Amplitude(*idx, prefac = self.prefac*factor, rhf=self.rhf)
 
 class Collection:
 
     # Object to represent a sum of terms and Contractions
 
-    def __init__(self, terms=[], coef = []):
+    def __init__(self, terms=[]):
 
         self.terms = terms
-        self.coef = []
 
     # Define addition operations
 
@@ -493,21 +507,18 @@ class Collection:
 
         # If 0 is added, return itself
         if other == 0:
-            return Collection(terms=self.terms, coef=self.coef)
+            return Collection(terms=self.terms)
 
         elif isinstance(other, Tensor) or isinstance(other, Contraction):
             # If other is a tensor or Contraction append it to terms
             newterms = self.terms[:]
-            newcoef = self.coef[:]
             newterms.append(other)
-            newcoef.append(1)
-            return Collection(newterms, newcoef)
+            return Collection(newterms)
 
         elif type(other) == Collection:
             # For two Contractions, merge the terms
             newterms = self.terms[:] + other.terms[:]
-            newcoef = self.coef[:] + other.coef[:]
-            return Collection(newterms, newcoef)
+            return Collection(newterms)
 
         else:
             return TypeError('Addition undefined for collection and {}'.format(type(other)))
@@ -520,22 +531,22 @@ class Collection:
 
         # If 0 is added, return itself
         if other == 0:
-            return Collection(terms=self.terms, coef=self.coef)
+            return Collection(terms=self.terms)
 
         elif isinstance(other, Tensor) or isinstance(other, Contraction):
             # If other is a tensor or Contraction append it to
+            newother = other.copy()
+            newother.prefac *= -1
             newterms = self.terms[:]
-            newcoef = self.coef[:]
-            newterms.append(other)
-            newcoef.append(-1)
-            return Collection(newterms, newcoef)
+            newterms.append(newother)
+            return Collection(newterms)
 
         elif isinstance(other, Collection):
-            newterms = self.terms[:] + other.terms[:]
-            newcoef = self.coef[:]
-            for coef in other.coef:
-                newcoef.append(-coef)
-            return Collection(newterms, newcoef)
+            newterms = other.terms[:]
+            for X in newterms:
+                X.prefac *= -1
+            newterms = self.terms[:] + newterms
+            return Collection(newterms)
 
     # Iteration thorugh a collection goes through each term
 
@@ -549,15 +560,11 @@ class Collection:
 
         if isinstance(other, Collection):
             out = Collection()
-            for Y,c1 in self, self.coef:
-                for X,c2 in other,other.coef:
+            for Y in self:
+                for X in other:
                     out += Y*X
-                    out.coef[-1] = c1*c2 
             return out
 
-        elif isinstance(other, float) or isinstance(other, int):
-            out = self.copy
-            out.coef = list(np.array(out.coef)*other)
         else:
             out = Collection()
             for X in self:

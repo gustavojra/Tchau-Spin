@@ -38,7 +38,37 @@ class Index:
         # Two indexes are the sme if name and spin match
 
         if type(other) == Index:
-            return self.name == other.name and self.spin == other.spin
+            return ((self.name, self.spin) == (other.name, other.spin))
+        return False
+
+    def __ne__(self,other):
+
+        if type(other) == Index:
+            return ((self.name, self.spin) != (other.name, other.spin))
+        return False
+
+    def __lt__(self,other):
+
+        if type(other) == Index:
+            return self.name < other.name
+        return False
+
+    def __le__(self,other):
+
+        if type(other) == Index:
+            return self.name <= other.name
+        return False
+
+    def __gt__(self,other):
+
+        if type(other) == Index:
+            return self.name > other.name
+        return False
+
+    def __ge__(self,other):
+
+        if type(other) == Index:
+            return self.name >= other.name
         return False
 
     def alpha(self):
