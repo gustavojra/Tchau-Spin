@@ -11,6 +11,8 @@ def platex(x):
 def latex_str(x):
 
     # Function to create a latex representation of Tensors, Indexes, Collections and Contractions
+    if isinstance(x, int) or isinstance(x, float):
+        return str(x)
 
     if isinstance(x, Index):
         # If the spin is not defined, represent with a tilde
@@ -22,17 +24,8 @@ def latex_str(x):
 
     if isinstance(x, Fock):
 
-        # Create string representation of the prefactor
-
-        if x.prefac == 1:
-            pf = ''
-        elif x.prefac == -1:
-            pf = '-'
-        else:
-            pf = str(x.prefac)
-
         # Add representation for indexes
-        out = pf + 'f_{'
+        out = 'f_{'
         for p in x.idx:
             out += latex_str(p)
 
@@ -43,17 +36,8 @@ def latex_str(x):
 
     if isinstance(x, ERI):
 
-        # Create string representation of the prefactor
-
-        if x.prefac == 1:
-            pf = ''
-        elif x.prefac == -1:
-            pf = '-'
-        else:
-            pf = str(x.prefac)
-
         # Add representation for indexes
-        out = pf + r'\langle '
+        out = r'\langle '
         for p in x.idx[0:2]:
             out += latex_str(p)
 
@@ -67,17 +51,8 @@ def latex_str(x):
 
     if isinstance(x, Amplitude):
 
-        # Create string representation of the prefactor
-
-        if x.prefac == 1:
-            pf = ''
-        elif x.prefac == -1:
-            pf = '-'
-        else:
-            pf = str(x.prefac)
-
         # Add representation for indexes
-        out = pf + 't_{'
+        out = 't_{'
         for p in x.idx[0:x.rank]:
             out += latex_str(p)
 
@@ -91,17 +66,8 @@ def latex_str(x):
 
     if isinstance(x, Tensor):
 
-        # Create string representation of the prefactor
-
-        if x.prefac == 1:
-            pf = ''
-        elif x.prefac == -1:
-            pf = '-'
-        else:
-            pf = str(x.prefac)
-
         # Add representation for indexes
-        out = pf + x.name + '_{'
+        out = x.name + '_{'
         for p in x.idx:
             out += latex_str(p)
 
@@ -112,14 +78,7 @@ def latex_str(x):
 
         # Create string representation of the prefactor
 
-        if x.prefac == 1:
-            pf = ''
-        elif x.prefac == -1:
-            pf = '-'
-        else:
-            pf = str(x.prefac)
-
-        out = str(pf) 
+        out = ''
         for C in x.contracting:
             out += latex_str(C)
         
@@ -129,8 +88,23 @@ def latex_str(x):
 
         out = ''
         f = True
-        for item in x:
-            if item.prefac > 0:
+        for i,c in zip(x.terms, x.coef):
+            if c == 1:
                 out += '+'
-            out += latex_str(item)
+            elif c == -1:
+                out += '-'
+            elif c > 0:
+                out += '+' + str(c)
+            else:
+                out += str(c)
+            out += latex_str(i)
+        return out
+
+    if isinstance(x, list):
+
+        out = '('
+        for i in x:
+            out += latex_str(i) + ','
+        out = out[:-1]
+        out += ')'
         return out

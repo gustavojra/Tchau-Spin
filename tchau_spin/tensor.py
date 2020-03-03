@@ -4,10 +4,16 @@ import copy
 
 class Tensor:
 
+    # RHF option. If true it allows more transformations (such as spin reflection)  when the function 'adapt' is called
+    rhf = False
+
     # General tensor representation, also base class for specific tensor as Fock, ERI and Amplitudes
 
-    def __init__(self, name, *argv, rhf=False):
-        self.rhf = rhf
+    def __init__(self, name, *argv):
+
+        # Requires a name (string)
+        # Requires indexes (*argv)
+
         self.idx = [] 
         for index in argv:
             if type(index) != Index:
@@ -19,14 +25,15 @@ class Tensor:
         self.name = name
         self.create_repr()
 
-
     def __str__(self):
+
+        # Return the string representation previously created
 
         return self.repr
 
     def create_repr(self):
 
-        # Create string representation
+        # Create string representation to be used when printing
 
         self.repr = str(self.name) + '('
         for i in self.idx:
@@ -35,11 +42,13 @@ class Tensor:
 
     def copy(self):
 
-        return Tensor(self.name, *self.idx, rhf=self.rhf)
+        # Return a copy of itself
+
+        return Tensor(self.name, *self.idx)
 
     def __add__(self, other):
 
-        # Addition: first put self into a collection, then call collectin addition method
+        # Additions are performed through the Collection object
         
         c = Collection() + self
 
@@ -47,15 +56,21 @@ class Tensor:
 
     def __radd__(self, other):
 
+        # Additions are performed through the Collection object
+
         return self + other
 
     def __sub__(self, other):
+
+        # Subtractions are performed through the Collection object
 
         c = Collection() + self
         
         return c - other
 
     def __rsub__(self, other):
+
+        # Subtractions are performed through the Collection object
 
         c = Collection() - self
 
@@ -64,14 +79,17 @@ class Tensor:
     def __mul__(self, other):
 
         # Multiplication of Tensors will produce a Contraction object
-        # If the multiplying are not spin defined, expantian will be called first
 
         if type(other) == float or type(other) == int:
+
+            # Multiplication by an scalar is performed through the Collection object
 
             c = Collection() + self
             return c*other
 
         if isinstance(other, Tensor):
+
+            # If the multiplying Tensors have spin-orbital indexes, 'expand' will be called first
 
             if self.any_undef_spin() and other.any_undef_spin():
                 return (self.expand())*(other.expand())
@@ -84,13 +102,13 @@ class Tensor:
 
             return Contraction.contract(self, other)
 
+        # Multiplication by Collection or Contraction object are implemented in the respective class
+
         if isinstance(other, Collection):
-            return other*self
+            return Collection.__mul__(other, self)
 
         if isinstance(other, Contraction):
-            if self.any_undef_spin():
-                return other*self.expand()
-            return other*self
+            return Contraction.__mul__(other, self)
 
         else:
 
@@ -102,10 +120,12 @@ class Tensor:
 
     def __pow__(self, other):
 
-        # Power of Tensors a spin-free contraction
-        # If the multiplying are not spin defined, expantian will be called first
+        # The Power operator (**) represents a spin-free contraction, that is, a contraction
+        # where the spin compatibility is not ensured. Use carefully.
 
         if isinstance(other, Tensor):
+
+            # If the multiplying Tensors have spin-orbital indexes, 'expand' will be called first
 
             if self.any_undef_spin() and other.any_undef_spin():
                 return (self.expand())**(other.expand())
@@ -118,12 +138,13 @@ class Tensor:
 
             return Contraction.spin_free_contract(self, other)
 
+        # Power with Collection or Contraction object are implemented in the respective class
+
         if isinstance(other, Collection):
-            return other**self
+            return Collection.__pow__(other, self)
 
         if isinstance(other, Contraction):
-            terms = [self] + other.contracting
-            return Contraction.spin_free_contract(*terms)
+            return Contraction.__pow__(other, self)
 
         else:
 
@@ -147,7 +168,7 @@ class Tensor:
 
     def any_undef_spin(self):
 
-        # Check if any index is spin undefined
+        # Check if any index is spin-orbital
 
         x = np.array([s.spin for s in self.idx]) == 'any'
         return any(x)
@@ -156,7 +177,7 @@ class Tensor:
 
         # Return a N dimentional array (N = number of indexes) where each array ranges from 0,1 representing beta and alpha spins
         # For each entry, 1 indicates that that spin combination is allowed, 0 indicates that that spin combination is not allowed
-        # For this general tensor, a case is allowed if its not in conflicte with the Indexes that have spin defined
+        # For this general tensor, a case is allowed if it does not conflict with the Indexes that have spin defined already
 
         possible = np.ones((2,)*len(self.idx))
 
@@ -179,6 +200,8 @@ class Tensor:
         # Expand the tensor in each allowed spin case
 
         possible = self.spin_cases()
+
+        # The next lines use a numpy trick to iterate thorugh all elements of an arbitrary shape array
         it = np.nditer(possible, flags=['multi_index'])
         out = Collection()
         while not it.finished:
@@ -205,11 +228,12 @@ class Tensor:
 
 class Fock(Tensor):
 
-    # Object that represents a fock matrix for restricted orbitals
+    # Object that represents a Fock matrix 
 
-    def __init__(self, index_1, index_2, rhf=False):
+    def __init__(self, index_1, index_2):
 
-        self.rhf = rhf
+        # It takes two indexes as arguments
+
         for index in [index_1, index_2]:
             if type(index) != Index:
                 raise TypeError('Indexes cannot be {}'.format(type(index)))
@@ -220,7 +244,7 @@ class Fock(Tensor):
 
         # Return a copy of itself
 
-        return Fock(*self.idx, prefac=self.prefac, rhf=self.rhf)
+        return Fock(*self.idx)
 
     def create_repr(self):
 
@@ -230,7 +254,7 @@ class Fock(Tensor):
 
     def expand(self):
 
-        # If spin-orbital indexes exist, expand all valid spin cases
+        # If spin-orbital indexes exist, return a Collection with all valid spin cases
 
         possible = self.spin_cases()
         
@@ -243,16 +267,17 @@ class Fock(Tensor):
                     if p == q:
                         ip = self.idx[0].change_spin(p)
                         iq = self.idx[1].change_spin(q)
-                        out += Fock(ip, iq, rhf=self.rhf)
+                        out += Fock(ip, iq)
 
         return out
 
     def adapt(self):
 
-        # If RHF is true and Fock is beta,beta return alpha,alpha
+        # If RHF is true and Fock is (beta, beta) return (alpha,alpha)
 
         if self.any_undef_spin():
             raise NameError('Cannot adapt while indexes have undefined spin')
+
         if self.idx[0].spin == 'beta' and self.idx[1].spin == 'beta' and self.rhf:
             return self.flip()
         else:
@@ -263,16 +288,18 @@ class ERI(Tensor):
     # Special tensor for the Two-electron integral array. Indices in Physicist's notation
 
     @staticmethod
-    def Antisymmetric(p,q,r,s, prefac=1, rhf=False):
+    def Antisymmetric(p,q,r,s):
 
         # Return the antisymmetric tensor ERI as a combination of two regular ERI:
         # <pq||rs> = <pq|rs> - <pq|sr>
+        # Note that the subtraction will produce a Collection object as output
 
-        return ERI(p,q,r,s, prefac=prefac, rhf=rhf) - ERI(p,q,s,r, prefac=prefac, rhf=rhf)
+        return ERI(p,q,r,s) - ERI(p,q,s,r)
 
-    def __init__(self, p, q, r, s, rhf=False):
+    def __init__(self, p, q, r, s):
 
-        self.rhf = rhf
+        # Four indexes are taken as arguments
+
         self.idx = [p,q,r,s]
         for index in self.idx:    
             if type(index) != Index:
@@ -283,7 +310,7 @@ class ERI(Tensor):
 
         # Return a copy of itself
 
-        return ERI(*self.idx, prefac=self.prefac, rhf=self.rhf)
+        return ERI(*self.idx)
 
     def create_repr(self):
 
@@ -293,6 +320,8 @@ class ERI(Tensor):
         self.repr = '<' +  str(p) + str(q) + '|' + str(r) + str(s) + '>'
 
     def expand(self):
+
+        # If spin-orbital indexes exist, return a Collection with all valid spin cases
 
         possible = self.spin_cases()
         
@@ -309,12 +338,13 @@ class ERI(Tensor):
                                 b = self.idx[1].change_spin(q)
                                 c = self.idx[2].change_spin(r)
                                 d = self.idx[3].change_spin(s)
-                                out += ERI(a,b,c,d, rhf=self.rhf)
+                                out += ERI(a,b,c,d)
         return out
 
     def adapt(self):
     
         # If all indexes are have beta spin and rhf is true, then flip spin
+
         if self.any_undef_spin():
             raise NameError('Cannot adapt while indexes have undefined spin')
         nalpha = np.sum(np.array([x.s for x in self.idx]))
@@ -326,11 +356,12 @@ class ERI(Tensor):
 class Amplitude(Tensor):
 
     # Special tensor to represent coupled cluster amplitudes.
-    # First half of index are taken as occupied indexes (below Fermi), second half as virtual indexes (above Fermi)
 
-    def __init__(self, *argv, rhf=False):
-
-        self.rhf = rhf
+    def __init__(self, *argv):
+    
+        # Takes an even number of indexes as arguments
+        # First half of index are taken as occupied indexes (below Fermi), second half as virtual indexes (above Fermi)
+    
         self.idx = [] 
         for index in argv:
             if type(index) != Index:
@@ -346,9 +377,9 @@ class Amplitude(Tensor):
 
     def copy(self):
 
-        # Returna  copy of itself
+        # Return copy of itself
 
-        return Amplitude(*self.idx, prefac=self.prefac, rhf=self.rhf)
+        return Amplitude(*self.idx)
 
     def create_repr(self):
 
@@ -363,10 +394,14 @@ class Amplitude(Tensor):
 
     def expand(self):
 
+        # If spin-orbital indexes exist, return a Collection with all valid spin cases
+
         possible = self.spin_cases()
         
         # For amplitude, we require that the number of alphas/betas in the occupied indexes equals the number of alpha/betas in the virtual space
         # e.g. Ij->Ab is allowed, but IJ->ab is not
+
+        # The next few lines uses a numpy trick to iterate through an arbitrary shaped Tensor
 
         it = np.nditer(possible, flags=['multi_index'])
         out = Collection()
@@ -379,7 +414,7 @@ class Amplitude(Tensor):
                     newidx = []
                     for i in range(len(it.multi_index)):
                         newidx.append(self.idx[i].change_spin(it.multi_index[i]))
-                    out += Amplitude(*newidx, rhf=self.rhf)
+                    out += Amplitude(*newidx)
             it.iternext() 
 
         return out
@@ -419,7 +454,7 @@ class Amplitude(Tensor):
                 newholes = holes[:]
                 newholes[i] = h.flip()
                 newidx = newholes + par
-                out += Amplitude(*newidx, rhf=self.rhf).adapt()
+                out += Amplitude(*newidx).adapt()
             return out
 
         # If the two tests above fail, then we have a mixed spin case.
@@ -476,7 +511,7 @@ class Amplitude(Tensor):
                 perm += 1
     
         idx = new_holes + new_par
-        return factor*Amplitude(*idx, rhf=self.rhf)
+        return factor*Amplitude(*idx)
 
 class Collection:
 
@@ -485,7 +520,7 @@ class Collection:
     def __init__(self, terms=[], coef = []):
 
         self.terms = terms
-        self.coef = []
+        self.coef = coef
 
     # Define addition operations
 
@@ -493,7 +528,7 @@ class Collection:
 
         # If 0 is added, return itself
         if other == 0:
-            return Collection(terms=self.terms, coef=self.coef)
+            return Collection(terms=self.terms[:], coef=self.coef[:])
 
         elif isinstance(other, Tensor) or isinstance(other, Contraction):
             # If other is a tensor or Contraction append it to terms
@@ -549,19 +584,23 @@ class Collection:
 
         if isinstance(other, Collection):
             out = Collection()
-            for Y,c1 in self, self.coef:
-                for X,c2 in other,other.coef:
-                    out += Y*X
-                    out.coef[-1] = c1*c2 
+            for Y,c1 in zip(self.terms, self.coef):
+                for X,c2 in zip(other.terms,other.coef):
+                    out += (c1*c2)*(Y*X)
             return out
 
         elif isinstance(other, float) or isinstance(other, int):
-            out = self.copy
+            if other == 0:
+                return 0
+            out = Collection(terms = self.terms[:], coef = self.coef[:])
             out.coef = list(np.array(out.coef)*other)
+            return out
+
         else:
             out = Collection()
-            for X in self:
-                out += other*X
+            for X,c in zip(self.terms, self.coef):
+                new = other*X
+                out += c*new
             return out
 
     def __rmul__(self, other):
@@ -572,15 +611,15 @@ class Collection:
 
         if isinstance(other, Collection):
             out = Collection()
-            for Y in self:
-                for X in other:
-                    out += Y**X
+            for Y,c1 in zip(self.terms, self.coef):
+                for X,c2 in zip(other.terms, other.coef):
+                    out += (c1*c2)*(Y**X)
             return out
 
         else:
             out = Collection()
-            for X in self:
-                out += other**X
+            for X,c in zip(self.terms, self.coef):
+                out += c*(other**X)
             return out
 
     def __str__(self):
@@ -596,20 +635,23 @@ class Collection:
 
     def expand(self):
         out = Collection()
-        for X in self:
+        for X,c in zip(self.terms, self.coef):
             if isinstance(X, Tensor):
-                out += X.expand()
+                out += c*X.expand()
             else:
-                out += X
+                out += c*X
         return out
 
     def adapt(self):
         out = Collection()
-        for X in self:
-            out += X.adapt()
+        for X,c in zip(self.terms, self.coef):
+            out += c*(X.adapt())
         return out
 
 class Contraction:
+
+    # Options
+    keep_only_connected_terms = True
 
     @staticmethod
     def contract(*argv):
@@ -619,12 +661,10 @@ class Contraction:
             if not isinstance(A, Tensor):
                 raise TypeError('Contraction not defined for {}'.format(type(A)))
             if A.any_undef_spin():
-                raise NameError('Tensor spin-orbital indexes cannot be contracted: {}'.format(A))
+                raise NameError('Tensor with spin-orbital indexes cannot be contracted: {}'.format(A))
 
-        names = []
         indexes = []
         for A in argv:
-            names += [x.name for x in A.idx]
             indexes += A.idx
 
         internal = []
@@ -642,8 +682,8 @@ class Contraction:
             if len(U) == 0:
                 return 0
 
-        for i in external:
-            if i.flip() in external:
+        for i in indexes:
+            if i.flip() in indexes:
                 return 0
 
         return Contraction(*argv, inter = internal, ext = external)
@@ -674,24 +714,20 @@ class Contraction:
                 external.append(i.alpha())
 
         # If one of the contracting tensors does not have a index contracting, return 0
-        for A in argv:
-            U = np.intersect1d([x.name for x in A.idx], [x.name for x in internal])
-            if len(U) == 0:
-                return 0
-        else:
-            return Contraction(*argv, inter=internal, ext=external, spin_free=True)
+        #for A in argv:
+        #    U = np.intersect1d([x.name for x in A.idx], [x.name for x in internal])
+        #    if len(U) == 0:
+        #        return 0
+        #else:
+        return Contraction(*argv, inter=internal, ext=external, spin_free=True)
 
-    def __init__(self, *argv, inter, ext, prefac=1, spin_free=False):
+    def __init__(self, *argv, inter, ext, spin_free=False):
 
         self.int = inter
         self.ext = ext
-        self.prefac = prefac
         self.contracting = list(argv)
         self.sort()
         self.spin_free = spin_free
-        for A in self.contracting:
-            self.prefac *= A.prefac
-            A.prefac = 1
 
     def sort(self):
         
@@ -719,25 +755,28 @@ class Contraction:
 
     def __str__(self):
 
-        out = str(self.prefac)
+        out = ''
         for X in self.contracting:
-            out += '*' + X.repr
+            out += X.repr + '*'
 
-        return out
+        return out[:-1]
 
     def __mul__(self, other):
 
         if type(other) == float or type(other) == int:
-            return Contraction(*self.contracting, inter=self.int, ext=self.ext, prefac=self.prefac*other)
+            out = Collection() + self
+            return other*out
 
         if isinstance(other, Tensor):
             if self.spin_free:
                 raise NameError('Cannot further contract a Spin-Free contraction (adapted). Try reorder your operations')
+            if other.any_undef_spin():
+                return other.expand()*self
             C = self.contracting + [other]
             return Contraction.contract(*C)
 
         if isinstance(other, Collection):
-            return other*self
+            return Collection.__mul__(other, self)
 
         else:
             raise TypeError('Multiplication not defined for Contraction and {}'.format(type(other)))
@@ -746,10 +785,28 @@ class Contraction:
 
         return self*other
 
+    def __pow__(self, other):
+
+        # The power operation (**) performs a spin free contraction, that is, a contraction where
+        # spin compatibility is not ensured. The terms are simply put together. Use carefully!
+
+        if isinstance(other, Tensor):
+            if other.any_undef_spin():
+                return other.expand()**self
+            C = self.contracting + [other]
+            return Contraction.spin_free_contract(*C)
+        else:
+            raise TypeError('Spin-free contraction not defined for Contraction and {}'.format(type(other)))
+
+
     def adapt(self):
+
+        # When adapt is called on a Contraction object each contracting term will be adapted
+        # The resulting terms will be put together via a spin free contraction
+        # That is, a contraction where spin compatibility  will no be check
 
         out = Collection()
         out += self.contracting[0].adapt()
         for c in self.contracting[1:]:
             out = out**(c.adapt())
-        return self.prefac*out
+        return out
