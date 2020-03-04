@@ -676,11 +676,13 @@ class Contraction:
             else:
                 external.append(i)
 
+        # If the keep_only_connected_terms option is True:
         # If one of the contracting tensors does not have a index contracting, return 0
-        for A in argv:
-            U = np.intersect1d([x for x in A.idx], [x for x in internal])
-            if len(U) == 0:
-                return 0
+        if Contraction.keep_only_connected_terms:
+            for A in argv:
+                U = np.intersect1d([x for x in A.idx], [x for x in internal])
+                if len(U) == 0:
+                    return 0
 
         for i in indexes:
             if i.flip() in indexes:
@@ -705,7 +707,9 @@ class Contraction:
 
         internal = []
         external = []
+
         # All indexes are saved as alpha for a spinless contraction
+
         for i in indexes:
             if names.count(i.name) > 1:
                 if i.alpha() not in internal:
@@ -713,12 +717,6 @@ class Contraction:
             else:
                 external.append(i.alpha())
 
-        # If one of the contracting tensors does not have a index contracting, return 0
-        #for A in argv:
-        #    U = np.intersect1d([x.name for x in A.idx], [x.name for x in internal])
-        #    if len(U) == 0:
-        #        return 0
-        #else:
         return Contraction(*argv, inter=internal, ext=external, spin_free=True)
 
     def __init__(self, *argv, inter, ext, spin_free=False):
@@ -728,6 +726,22 @@ class Contraction:
         self.contracting = list(argv)
         self.sort()
         self.spin_free = spin_free
+
+    def __eq__(self, other):
+        
+        # Two contractions are equal if each contracting term is the same
+
+        if type(other) != Contraction:
+            return False
+        
+        if len(other.contracting) != len(self.contracting):
+            return False
+
+        for A,B in zip(self.contracting, other.contracting):
+            if A != B:
+                return False 
+
+        return True 
 
     def sort(self):
         
@@ -798,6 +812,10 @@ class Contraction:
         else:
             raise TypeError('Spin-free contraction not defined for Contraction and {}'.format(type(other)))
 
+    def isequivalent(self, other):
+
+        # Test if this contraction is equivalent to another, considering permutation symmetric, dummy indices etc
+        pass
 
     def adapt(self):
 
