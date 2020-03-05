@@ -353,6 +353,24 @@ class ERI(Tensor):
         else:
             return self.copy()
 
+    def equivalent_forms(self):
+
+        # Return a list with all possible permutations of the ERI.
+
+        out = []
+        i,j,k,l = self.idx
+
+        out.append(ERI(i,j,k,l))
+        out.append(ERI(j,i,l,k))
+        out.append(ERI(k,l,i,j))
+        out.append(ERI(l,k,j,i))
+        out.append(ERI(k,j,i,l))
+        out.append(ERI(l,i,j,k))
+        out.append(ERI(i,l,k,j))
+        out.append(ERI(j,k,l,i))
+
+        return out
+
 class Amplitude(Tensor):
 
     # Special tensor to represent coupled cluster amplitudes.
@@ -648,6 +666,41 @@ class Collection:
             out += c*(X.adapt())
         return out
 
+    def simplify(self):
+        out = self.expand()
+        out = out.adapt()
+        l = len(out)
+
+        i = 0
+        j = 0
+        for i in range(l):
+            t1 = out.terms[i]
+            c1 = out.coef[i]
+            for j in range(i+1,l):
+                t2 = out.terms[j]
+                c2 = out.coef[j]
+                        
+                if isinstance(t1, Contraction) and isinstance(t2, Contraction):
+                    if t1.isequivalent(t2):
+                        out.coef[i] += c2
+                        out.coef[j] = 0
+
+                elif t1 == t2:
+                    out.coef[i] += c2
+                    out.coef[j] = 0
+        
+        # Clean up zeros
+        
+        npC = np.array(out.coef)
+        npT = np.array(out.terms)
+
+        mask = npC != 0
+
+        out.coef = list(npC[mask])
+        out.terms = list(npT[mask])
+
+        return out
+
 class Contraction:
 
     # Options
@@ -812,10 +865,79 @@ class Contraction:
         else:
             raise TypeError('Spin-free contraction not defined for Contraction and {}'.format(type(other)))
 
+    def sub_dummies(self):
+
+        # Currently assuming spin free and RHF !!!!
+
+        label = 1
+        Map = {}
+        newcontracting = []
+
+        # Return a copy of itself where contracting indexes(dummies) are relabelled. Useful to compare two contractings
+
+        # Loop through each contracting term
+        for C in self.contracting:
+
+            # Make a copy of it so we can modify
+            newC = C.copy()
+
+            # Loop through indexes of the term
+            for i,idx in enumerate(newC.idx):
+
+                # If the index is internal, give it a dummy name
+                if idx.alpha() in self.int:
+                    # Check if the index has been assigned a dummy index previously (saved in the dictionary)
+                    if idx.name in Map:
+                        newC.idx[i] = Map[idx.name]
+                    # If not, create the assignment and store in the dictionary
+                    else:
+                        newC.idx[i] = Index(str(label), spin='alpha')
+                        Map[idx.name] = Index(str(label), spin='alpha')
+                        label += 1
+            newcontracting.append(newC)
+        
+        return Contraction.spin_free_contract(*newcontracting)
+        
+
     def isequivalent(self, other):
 
         # Test if this contraction is equivalent to another, considering permutation symmetric, dummy indices etc
-        pass
+
+        # Check type and number of contracting terms
+        if type(other) != Contraction:
+            return False
+        
+        contain_ERI = False
+        for C1, C2 in zip(self.contracting, other.contracting):
+            if type(C1) != type(C2):
+                return False
+            if type(C1) == ERI:
+                contain_ERI = True
+                ERI2 = C2
+
+        if len(other.contracting) != len(self.contracting):
+            return False
+
+        # This function cannot be called if the contraction is not spin-free, that is, 'adapt' should be used first
+        #if not self.spin_free or other.spin_free:
+        #    raise NameError('Please adapt the contractions before testing equivalence')
+
+        if not Tensor.rhf:
+            raise NameError('UHF case not implemented yet :(')  
+
+        if contain_ERI:
+            O = Contraction.spin_free_contract(*other.contracting)
+            i = other.contracting.index(ERI2)
+    
+            for V in ERI2.equivalent_forms():
+                O.contracting[i] = V
+                if self.sub_dummies() == O.sub_dummies():
+                    return True
+            return False
+        
+        else:
+            return self.sub_dummies() == other.sub_dummies()
+            
 
     def adapt(self):
 

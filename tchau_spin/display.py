@@ -93,7 +93,7 @@ def latex_str(x):
                 out += '+'
             elif c == -1:
                 out += '-'
-            elif c > 0:
+            elif c >= 0:
                 out += '+' + str(c)
             else:
                 out += str(c)
