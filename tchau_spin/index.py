@@ -4,7 +4,7 @@ class Index:
     # Must have a name (e.g. i,j,k,l,m,n, etc)
     # Msut have a spin (alpha, beta or any)
     
-    def __init__(self, name, spin='any'):
+    def __init__(self, name, spin='any', hole=False, particle=False):
 
         if len(name) > 1:
             raise NameError('Index must be identified by one letter')
@@ -18,6 +18,12 @@ class Index:
             self.s = 2
         else:
             raise NameError('Invalid Spin Type. Must be alpha, beta or any')
+
+        self.hole = hole
+        self.particle = particle
+
+        if self.hole and self.particle:
+            raise NameError('Index cannot be particle and hole at the same time')
 
     def __str__(self):
 

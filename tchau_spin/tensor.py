@@ -918,10 +918,6 @@ class Contraction:
         if len(other.contracting) != len(self.contracting):
             return False
 
-        # This function cannot be called if the contraction is not spin-free, that is, 'adapt' should be used first
-        #if not self.spin_free or other.spin_free:
-        #    raise NameError('Please adapt the contractions before testing equivalence')
-
         if not Tensor.rhf:
             raise NameError('UHF case not implemented yet :(')  
 
@@ -950,3 +946,21 @@ class Contraction:
         for c in self.contracting[1:]:
             out = out**(c.adapt())
         return out
+
+    def permute(self, x, y):
+        
+        # Return a copy of itself where indexes x and y were permuted
+
+        newcontracting = self.contracting[:]
+
+        for C in newcontracting:
+            for i, idx in enumerate(C.idx):
+                if idx == x:
+                    C.idx[i] = y
+                elif idx == y:
+                    C.idx[i] = x
+
+        if self.spin_free:
+            return Contraction.spin_free_contract(*newcontracting)
+        return Contraction.contract(*newcontracting)
+    
