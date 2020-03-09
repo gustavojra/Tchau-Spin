@@ -3,10 +3,10 @@ i alpha hole
 j beta hole
 a alpha par
 b beta par 
-c 
-d 
-k 
-l 
+c any par
+d any par
+k any hole
+l any hole
 END
 
 EQUATION: T2 Amplitude

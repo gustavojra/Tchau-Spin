@@ -3,6 +3,46 @@ class Index:
     # Class to represente indexes using in quantum chemistry calculations
     # Must have a name (e.g. i,j,k,l,m,n, etc)
     # Msut have a spin (alpha, beta or any)
+
+    @staticmethod
+    def new(names, spins = '', spaces = ''):
+
+        # Auxiliar function to create several indexes at the same time
+        # e.g. new('ijab', 'abab', 'hhpp') creates I (hole), j (hole), A (particle)
+        # and b (particle). spins and spaces are optinal. Use 'x' for any.
+        # e.g. new('ij', 'ax') creates I and ~j (spin orbital)
+
+        while len(spins) < len(names):
+            spins = spins + 'x'
+
+        while len(spaces) < len(names):
+            spaces = spaces + 'x'
+
+        holes = []
+        par = []
+        for k in spaces:
+            if k == 'h':
+                holes.append(True)
+                par.append(False)
+            elif k == 'p':
+                holes.append(False)
+                par.append(True)
+            else:
+                holes.append(False)
+                par.append(False)
+
+        out = []
+        for i in range(len(names)):
+            if spins[i] == 'a':
+                new_index = Index(names[i], spin = 'alpha', hole = holes[i], particle=par[i])
+            elif spins[i] == 'b':
+                new_index = Index(names[i], spin = 'beta', hole = holes[i], particle=par[i])
+            else:
+                new_index = Index(names[i], hole = holes[i], particle=par[i])
+            
+            out.append(new_index)
+
+        return out
     
     def __init__(self, name, spin='any', hole=False, particle=False):
 
@@ -81,13 +121,13 @@ class Index:
 
         # Return a copy of itself with alpha spin
 
-        return Index(self.name, spin='alpha')
+        return Index(self.name, spin='alpha', hole=self.hole, particle=self.particle)
 
     def beta(self):
 
         # Return a copy of itself with beta spin
 
-        return Index(self.name, spin='beta')
+        return Index(self.name, spin='beta', hole=self.hole, particle=self.particle)
 
     def change_spin(self, s):
 

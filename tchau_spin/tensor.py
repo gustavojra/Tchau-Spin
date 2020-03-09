@@ -341,6 +341,23 @@ class ERI(Tensor):
                                 out += ERI(a,b,c,d)
         return out
 
+    def adapt_space(selfi, verbose = False):
+
+        # Use symmetry properties to put the ERI in a standand form with respect to occupancy space
+        # e.g. OOVO is transformed into OOOV
+
+        standard = [
+            'oooo',
+            'ooov',
+            'oovv',
+            'ovov',
+            'ovvv',
+            'vvvv']
+
+        
+
+        
+
     def adapt(self):
     
         # If all indexes are have beta spin and rhf is true, then flip spin

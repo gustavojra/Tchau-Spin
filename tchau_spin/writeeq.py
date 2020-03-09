@@ -7,19 +7,25 @@ class process_eq:
     # Translation keys to term equation terms into einsum
     translation = {}
 
-    def __init__(self, eq, name='name'):
+    def __init__(self, eq, *ext_ind, name='name'):
         
+        self.name = name
         self.eq = eq
+        self.external_indexes = ext_ind
+        self.ext_string = ''
+
+        for i in self.external_indexes:
+            self.ext_string += str(i)
 
     def get_name(self, X):
 
         name_out = ''
         if isinstance(X, Fock):
-           name_out += 'f' 
+           name_out += 'f_' 
         elif isinstance(X, ERI):
-            name_out += 'V'
+            name_out += 'V_'
         elif isinstance(X, Amplitude):
-            name_out += 'T'
+            name_out += 'T_'
         else:
             name_out += X.name
 
@@ -39,15 +45,18 @@ class process_eq:
 
     def get_einsum_string(self, X):
 
-        out = ''
+        out = '\''
 
         for C in X.contracting:
             for index in C.idx:
                 out += str(index)
+            out += ', '
 
-                # Figure out output string eg ijab (PUT IN THE INPUT?)
-                # CONTINUE HERE
-                
+        # Drop the last comma
+        out = out[:-2]
+        out += ' -> ' + self.ext_string + '\'' 
+
+        return out.lower()
 
     def einsum_from_contraction(self, X):
 
@@ -56,14 +65,20 @@ class process_eq:
 
         if isinstance(X, Contraction):
             
-            out = 'np.einsum({}, {})'  
+            out = 'np.einsum({},'.format(self.get_einsum_string(X))
+            for C in X.contracting:
+                out += ' ' + self.get_name(C) + ','
+            out += " optimize = 'optimal')"
+
+            return out
+                
 
     def write_einsums_out(self, output, print_out=False):
         
         out = ''
         
-        for elementi, coef in zip(self.eq.terms, self.eq.coef):
-            out += 'name += ' + coef + '*' + self.einsum_from_contraction(element)
+        for element, coef in zip(self.eq.terms, self.eq.coef):
+            out += self.name + ' += ' + str(coef) + '*' + self.einsum_from_contraction(element) + '\n'
 
         with open(output, 'w') as outp:
             if print_out:
