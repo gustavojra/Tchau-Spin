@@ -1,0 +1,2 @@
+self.Ecc -= np.einsum('jiab, ijab -> ', self.T2, self.Voovv, optimize = 'optimal')
+self.Ecc += 2.0*np.einsum('ijab, ijab -> ', self.T2, self.Voovv, optimize = 'optimal')

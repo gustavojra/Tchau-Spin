@@ -11,13 +11,13 @@ END
 
 EQUATION: T2 Amplitude
 A(ab,ij) + 0.5*A(ab,cd)*T(ij,cd) + 0.5*A(ij,kl)*T(kl,ab)
--A(bk,cj)*T(ik,ac) - A(bk,ci)*T(jk,ac) - A(ak,cj)*T(ik,bc) + A(ak,ci)*T(jk,bc)
+-A(bk,cj)*T(ik,ac) + A(bk,ci)*T(jk,ac) + A(ak,cj)*T(ik,bc) - A(ak,ci)*T(jk,bc)
 -f(jk)*T(ik,ab) + f(ik)*T(jk,ab) + f(bc)*T(ij,ac) - f(ac)*T(ij,bc)
 A(kl,cd)*0.25*T(ij,cd)*T(kl,ab)
 -A(kl,cd)*0.5*T(ij,ac)*T(kl,bd)
 -0.5*A(kl,cd)*T(ij,bd)*T(kl,ac)
 -A(kl,cd)*0.5*T(ik,ab)*T(jl,cd)
--A(kl,cd)*T(ik,cd)*T(jl,ab)
+-A(kl,cd)*0.5*T(ik,cd)*T(jl,ab)
 A(kl,cd)*T(ik,ac)*T(jl,bd)
 A(kl,cd)*T(ik,bd)*T(jl,ac)
 END

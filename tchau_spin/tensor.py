@@ -226,6 +226,22 @@ class Tensor:
         out.create_repr()
         return out
 
+    def space(self):
+
+        # Return a string representing the space of each index in the tensor.
+        # e.g. for a tensor with indexes i,j,a,b return 'oovv'. (Assuming i,j are occupied indexes and a,b are virtual ones)
+
+        space_string = ''
+        for i in self.idx:
+            if i.hole:
+                space_string += 'o' 
+            elif i.particle:
+                space_string += 'v'
+            else:
+                raise NameError('Index {} does not have a space defined'.format(i))
+
+        return space_string
+
 class Fock(Tensor):
 
     # Object that represents a Fock matrix 
@@ -341,10 +357,11 @@ class ERI(Tensor):
                                 out += ERI(a,b,c,d)
         return out
 
-    def adapt_space(selfi, verbose = False):
+
+    def adapt_space(self, verbose = False):
 
         # Use symmetry properties to put the ERI in a standand form with respect to occupancy space
-        # e.g. OOVO is transformed into OOOV
+        # e.g. oovo is transformed into ooov. Spin is not considered.
 
         standard = [
             'oooo',
@@ -354,19 +371,37 @@ class ERI(Tensor):
             'ovvv',
             'vvvv']
 
-        
+        if verbose: print('\nSpace adapting {}'.format(self))
+        space_string = self.space()
 
-        
+        if verbose: print('Current Space String: {}'.format(space_string))
+
+        # If the ERI is alredy in standard form, return a copy
+        if space_string in standard:
+            if verbose: print('Already in standard form')
+            return self.copy()
+
+        # If not, expand in all possible forms and search for the first one that is in standard form 
+        else:
+            eqforms  = self.equivalent_forms()
+            if verbose: print('Checking equivalent forms')
+            for X in eqforms:
+                if verbose: print('Equivalent form {}. Space string: {}'.format(X, X.space()))
+                if X.space() in standard:
+                    if verbose: print('Standard form found!')
+                    return X.copy()
+            raise NameError('No standard form found for {}'.format(self))
 
     def adapt(self):
     
-        # If all indexes are have beta spin and rhf is true, then flip spin
+        # If RHF is true, make all the indexes alpha.
 
         if self.any_undef_spin():
             raise NameError('Cannot adapt while indexes have undefined spin')
-        nalpha = np.sum(np.array([x.s for x in self.idx]))
-        if nalpha == 0 and self.rhf:
-            return self.flip()
+
+        if self.rhf:
+            p,q,r,s = self.idx
+            return ERI(p.alpha(), q.alpha(), r.alpha(), s.alpha())
         else:
             return self.copy()
 
@@ -683,6 +718,16 @@ class Collection:
             out += c*(X.adapt())
         return out
 
+    def adapt_space(self, verbose=False):
+        # Just for ERIs
+        out = Collection()
+        for X,c in zip(self.terms, self.coef):
+            if type(X) == ERI or type(X) == Contraction:
+                out += c*(X.adapt_space(verbose=verbose))
+            else:
+                out += c*X
+        return out
+
     def simplify(self):
         out = self.expand()
         out = out.adapt()
@@ -962,6 +1007,30 @@ class Contraction:
         out += self.contracting[0].adapt()
         for c in self.contracting[1:]:
             out = out**(c.adapt())
+        return out
+
+    def adapt_space(self, verbose=False):
+
+        # When adapt is called on a Contraction object each ERI in the contraction will be space adapted
+
+        out = Collection()
+        if type(self.contracting[0]) == ERI:
+            out += self.contracting[0].adapt_space(verbose=verbose)
+        else:
+            out += self.contracting[0]
+
+        if self.spin_free:
+            for c in self.contracting[1:]:
+                if type(c) == ERI:
+                    out = out**(c.adapt_space(verbose=verbose))
+                else:
+                    out = out**c
+        else:
+            for c in self.contracting[1:]:
+                if type(c) == ERI:
+                    out = out*(c.adapt_space(verbose=verbose))
+                else:
+                    out = out*c
         return out
 
     def permute(self, x, y):

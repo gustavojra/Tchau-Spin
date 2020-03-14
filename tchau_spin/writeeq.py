@@ -3,13 +3,16 @@ from .tensor import *
 class process_eq:
 
     # Class to process equation and write out the desired output
-
     # Translation keys to term equation terms into einsum
-    translation = {}
 
-    def __init__(self, eq, *ext_ind, name='name'):
+    def __init__(self, eq, *ext_ind, name='name', tensor_labels={}):
         
+        # To initialize the process, an equation (Collection object)
+        # external indexes (i,j,a,b, etc, with spin and space defined)
+        # and an optimal name must be given.
+
         self.name = name
+        self.tensor_labels = tensor_labels
         self.eq = eq
         self.external_indexes = ext_ind
         self.ext_string = ''
@@ -18,6 +21,12 @@ class process_eq:
             self.ext_string += str(i)
 
     def get_name(self, X):
+
+        # For a given term, give it a name
+        # Standard names start with f, V, and T for fock, ERI and Amplitudes
+        # followed by o, O, v or V, depending on the spin and space of the
+        # indexes. If the standard name correspond to an entry in the dictionary
+        # 'tensor_labels' that entry will be used instead. 
 
         name_out = ''
         if isinstance(X, Fock):
@@ -41,9 +50,13 @@ class process_eq:
                 elif i.particle:
                     name_out += 'v'
 
+        if name_out in self.tensor_labels:
+            return self.tensor_labels[name_out]
         return name_out
 
     def get_einsum_string(self, X):
+
+        # Produces an einsum string (e.g. 'ijmn,mnab->ijab') from a contraction
 
         out = '\''
 
@@ -60,6 +73,8 @@ class process_eq:
 
     def einsum_from_contraction(self, X):
 
+        # Produces the einsum command for a contraction
+
         if isinstance(X, Tensor):
             return self.get_name(X)
 
@@ -72,13 +87,19 @@ class process_eq:
 
             return out
                 
-
     def write_einsums_out(self, output, print_out=False):
+
+        # From a Collection, write all the einsum expressions
         
         out = ''
         
         for element, coef in zip(self.eq.terms, self.eq.coef):
-            out += self.name + ' += ' + str(coef) + '*' + self.einsum_from_contraction(element) + '\n'
+            if coef == 1:
+                out += self.name + ' += ' + self.einsum_from_contraction(element) + '\n'
+            elif coef == -1:
+                out += self.name + ' -= ' + self.einsum_from_contraction(element) + '\n'
+            else:
+                out += self.name + ' += ' + str(coef) + '*' + self.einsum_from_contraction(element) + '\n'
 
         with open(output, 'w') as outp:
             if print_out:
