@@ -87,7 +87,7 @@ class process_eq:
 
             return out
                 
-    def write_einsums_out(self, output, print_out=False):
+    def write_einsums_out(self, output='', print_out=False):
 
         # From a Collection, write all the einsum expressions
         
@@ -101,7 +101,11 @@ class process_eq:
             else:
                 out += self.name + ' += ' + str(coef) + '*' + self.einsum_from_contraction(element) + '\n'
 
-        with open(output, 'w') as outp:
-            if print_out:
-                print(out)
-            outp.write(out)
+        # If print_out was set to True, print to screen
+        if print_out:
+            print(out)
+
+        # If no output was given, nothing will be saved to disk
+        if output != '':
+            with open(output, 'w') as outp:
+                outp.write(out)

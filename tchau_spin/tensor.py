@@ -766,7 +766,7 @@ class Collection:
 class Contraction:
 
     # Options
-    keep_only_connected_terms = True
+    keep_only_connected_terms = False
 
     @staticmethod
     def contract(*argv):
