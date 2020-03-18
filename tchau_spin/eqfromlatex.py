@@ -28,7 +28,4 @@ def eqfromlatex(inp, index_keys):
     # Remove fractions
     out = re.sub('\\\\frac{(.+?)}{(\d+?)}', '(1/\\2)*\\1', out)
 
-    print('Equation after clean up:')
-    print(out)
-
     return eqfromstring(out, tensor_keys, index_keys)

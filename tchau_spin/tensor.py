@@ -299,6 +299,30 @@ class Fock(Tensor):
         else:
             return self.copy()
 
+    def adapt_space(self, verbose = False):
+
+        # Use symmetry properties to put the Fock matrix in a standand form with respect to occupancy space
+        # i.e. vo is transformed into ov. Spin is not considered.
+
+        if verbose: print('\nSpace adapting {}'.format(self))
+        space_string = self.space()
+
+        if verbose: print('Current Space String: {}'.format(space_string))
+
+        # If the Fock is alredy in standard form, return a copy
+        if space_string in ['oo', 'vv', 'ov']:
+            if verbose: print('Already in standard form')
+            return self.copy()
+
+        # If not, expand in all possible forms and search for the first one that is in standard form 
+        else:
+            if space_string == 'vo':
+                p, q = self.idx
+                if verbose: print('Flipping indices!')
+                return Fock(q, p)
+            else:
+                raise NameError('No standard form found for {}'.format(self))
+
 class ERI(Tensor):
 
     # Special tensor for the Two-electron integral array. Indices in Physicist's notation
@@ -591,6 +615,45 @@ class Collection:
 
         self.terms = terms
         self.coef = coef
+        self.sort()
+
+    def sort(self):
+
+        # Return a 'sorted' version of the Collection. Sorted in this case has to do with some rules for sorting the terms. Each term is given a 
+        # number of points, then they are sorted from smaller to bigger number of points.
+        # The points system for each type of tensor is:
+        # Fock: -1
+        # ERI: -0.5
+        # Tn: n
+        # General: (# of indexes)/2
+
+        points = []
+        for X in self.terms:
+            if type(X) == Fock:
+                points.append(-1)
+            elif type(X) == ERI:
+                points.append(-0.5)
+            elif type(X) == Amplitude:
+                points.append(X.rank)
+            elif type(X) == Tensor:
+                points.append(len(X.idx)/2)
+            elif type(X) == Contraction:
+                p = 0
+                for Y in X.contracting:
+                    if type(Y) == Fock:
+                        p += -1
+                    elif type(Y) == ERI:
+                        p += 1
+                    elif type(Y) == Amplitude:
+                        p += Y.rank
+                    elif type(Y) == Tensor:
+                        p += len(Y.idx)/2
+                points.append(p)
+
+        s = np.argsort(points)
+
+        self.terms = list(np.array(self.terms)[s])
+        self.coef = list(np.array(self.coef)[s])
 
     # Define addition operations
 
@@ -719,10 +782,10 @@ class Collection:
         return out
 
     def adapt_space(self, verbose=False):
-        # Just for ERIs
+        # Just for ERIs and Fock
         out = Collection()
         for X,c in zip(self.terms, self.coef):
-            if type(X) == ERI or type(X) == Contraction:
+            if type(X) in [ERI, Fock, Contraction]:
                 out += c*(X.adapt_space(verbose=verbose))
             else:
                 out += c*X
@@ -1014,7 +1077,7 @@ class Contraction:
         # When adapt is called on a Contraction object each ERI in the contraction will be space adapted
 
         out = Collection()
-        if type(self.contracting[0]) == ERI:
+        if type(self.contracting[0]) in [Fock, ERI]:
             out += self.contracting[0].adapt_space(verbose=verbose)
         else:
             out += self.contracting[0]

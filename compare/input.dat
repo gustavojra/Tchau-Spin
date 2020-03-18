@@ -1,0 +1,27 @@
+import sys
+sys.path.append('.')
+from auto import RCCSD as auto
+from Stanton import RCCSD as Stt
+
+molecule mol {
+    0 1
+    O
+    H 1 0.96
+    H 1 0.96 2 104.5
+    symmetry c1
+}
+
+set {
+    BASIS         cc-pvtz
+    REFERENCE     RHF
+    SCF_TYPE      PK
+    E_CONVERGENCE 12
+}
+
+e, wfn = energy('scf', return_wfn=True)
+p4 = energy('ccsd')
+
+#auto(wfn, CC_CONV = 8, E_CONV = 12)
+Stt(wfn, CC_CONV = 8, E_CONV = 12)
+print(p4)
+
