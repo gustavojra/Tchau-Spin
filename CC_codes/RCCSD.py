@@ -291,7 +291,7 @@ def RCCSD(wfn, CC_CONV=6, CC_MAXITER=50, E_CONV=8):
         ite += 1
 
     print('CCSD Energy:   {:<15.10f}'.format(Ecc + Ehf))
-    print('CCD iterations took %.2f seconds.\n' % (time.time() - t0))
+    print('CCSD iterations took %.2f seconds.\n' % (time.time() - t0))
     return (Ecc + Ehf)
 
 if __name__ == '__main__':

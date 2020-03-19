@@ -421,7 +421,7 @@ class ERI(Tensor):
         # If RHF is true, make all the indexes alpha.
 
         if self.any_undef_spin():
-            raise NameError('Cannot adapt while indexes have undefined spin')
+            raise NameError('Cannot adapt while indexes have undefined spin: {}'.format(self))
 
         if self.rhf:
             p,q,r,s = self.idx
@@ -615,7 +615,7 @@ class Collection:
 
         self.terms = terms
         self.coef = coef
-        self.sort()
+        #self.sort()
 
     def sort(self):
 

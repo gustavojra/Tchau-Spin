@@ -99,7 +99,7 @@ def create_tensor(string, tensor_keys, index_keys):
 
     return new
 
-def eqfromstring(string, tensor_keys, idx_keys):
+def eqfromstring(string, tensor_keys, idx_keys, verbose=False):
 
     # Slice the string with respect to spaces.
     # Space is interpreted as the end of a terms and beginning of another
@@ -113,15 +113,19 @@ def eqfromstring(string, tensor_keys, idx_keys):
     
     # Loop through terms
     for t in terms:
+
+        if verbose: print('Reading term: {}'.format(t))
     
         # If terms is just a positive sign, make phase = +1
         if t == '+':
             phase = +1
+            if verbose: print('Just a plus sign')
             continue
     
         # If terms is just a negative sign, make phase = -1
         elif t == '-':
             phase = -1
+            if verbose: print('Just a negative sign')
             continue
     
         # If no * is found in the term, it is a stand alone tensor
@@ -136,6 +140,7 @@ def eqfromstring(string, tensor_keys, idx_keys):
              new = create_tensor(t, tensor_keys, idx_keys)
     
              # Add it to the main output
+             if verbose: print('Tensor created: {}'.format(new))
              out+= phase*new
     
         # if * is in the term it means that it is a contraction
@@ -145,7 +150,9 @@ def eqfromstring(string, tensor_keys, idx_keys):
             subterms = t.split('*')
     
             # Thus, we loop through each (sub)terms of the contraction
+            first = True
             for st in subterms:
+                if verbose: print('Opening up contraction')
                 if st[0] == '-':
                     phase = -1
                 elif st[0] == '+':
@@ -154,20 +161,26 @@ def eqfromstring(string, tensor_keys, idx_keys):
                 # Test if the term is just a number
                 if z: 
                     phase = phase*float(z.group(1))/float(z.group(2))
+                    if verbose: print('Number found: {}'.format(phase))
                     continue
                 else:
                     # Call a function to process the individual term, creating a tensor object
                     new = create_tensor(st, tensor_keys, idx_keys)
     
                     # If the sub collection is empty, add to it
-                    if len(sub) == 0:
+                    if first:
+                        if verbose: print('Contraction term: {}'.format(new))
                         sub += new
+                        first = False
     
                     # If not, contract what is there with the new term
                     else:
+                        if verbose: print('Contraction term: {}'.format(new))
                         sub = sub*new 
     
             # Once we done collecting the terms of the contraction, add it to the main output
+            if verbose: print('New contraction: {}'.format(sub))
             out += phase*sub
+            if verbose: print('\n\n')
 
     return out

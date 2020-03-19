@@ -10,11 +10,12 @@ tensor_keys = {
     'T' : Amplitude
 }
 
-def eqfromlatex(inp, index_keys):
+def eqfromlatex(inp, index_keys, verbose=False):
 
     # Generate a Collection object with a latex equation given in the
     # string 'inp' 
 
+    if verbose: print('Cleaning up equation...')
     # Remove spaces betweem signs and next terms
     out = re.sub('([+-])\s', '\\1', inp)
     # Add * between tensors contraction
@@ -28,4 +29,7 @@ def eqfromlatex(inp, index_keys):
     # Remove fractions
     out = re.sub('\\\\frac{(.+?)}{(\d+?)}', '(1/\\2)*\\1', out)
 
-    return eqfromstring(out, tensor_keys, index_keys)
+    if verbose: print('Equation after clean up:')
+    if verbose: print(out)
+
+    return eqfromstring(out, tensor_keys, index_keys, verbose=verbose)
