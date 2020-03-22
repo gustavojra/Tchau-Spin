@@ -678,7 +678,10 @@ class Collection:
             return Collection(newterms, newcoef)
 
         else:
-            return TypeError('Addition undefined for collection and {}'.format(type(other)))
+            try:
+                return other + self
+            except:
+                return TypeError('Addition undefined for collection and {}'.format(type(other)))
 
     def __radd__(self, other):
 
@@ -758,8 +761,10 @@ class Collection:
     def __str__(self):
 
         out  = ''
-        for x in self.terms:
-            out += str(x) + '   '
+        if len(self) > 0:
+            out = str(self.terms[0])
+            for x in self.terms[1:]:
+                out += ' + ' + str(x)
 
         return out
 
@@ -1099,17 +1104,47 @@ class Contraction:
     def permute(self, x, y):
         
         # Return a copy of itself where indexes x and y were permuted
+        # Can only permute external indexes
 
         newcontracting = self.contracting[:]
+
+        if x not in self.ext or y not in self.ext:
+            raise NameError('Indexes {} and {} not external to contraction {}'.format(x,y,self))
 
         for C in newcontracting:
             for i, idx in enumerate(C.idx):
                 if idx == x:
-                    C.idx[i] = y
+                    C.idx[i] = y if y.spin == x.spin else y.flip()
                 elif idx == y:
-                    C.idx[i] = x
+                    C.idx[i] = x if y.spin == x.spin else x.flip()
 
         if self.spin_free:
             return Contraction.spin_free_contract(*newcontracting)
         return Contraction.contract(*newcontracting)
     
+    def get_ERI(self):
+
+        # Return a copy of the first ERI found in the contraction
+
+        for x in self.contracting:
+            if isinstance(x, ERI):
+                return x.copy()
+
+        return None
+
+    def remove(self, elem):
+
+        # Remove a contracting elemenet. If there is only one terms left, return it
+
+        newcontracting = self.contracting[:]
+        newcontracting.remove(elem)
+
+        if len(newcontracting) == 0:
+            return Collection()
+
+        if len(newcontracting) == 1:
+            return newcontracting[0]
+
+        if self.spin_free:
+            return Contraction.spin_free_contract(*newcontracting)
+        return Contraction.contract(*newcontracting)

@@ -1,5 +1,6 @@
 from .index import Index
 from .tensor import *
+from .factorize import Factor
 from IPython.display import display, Math
 
 def platex(x):
@@ -90,14 +91,26 @@ def latex_str(x):
         f = True
         for i,c in zip(x.terms, x.coef):
             if c == 1:
-                out += '+'
+                if not f: out += '+'
             elif c == -1:
                 out += '-'
-            elif c >= 0:
+            elif c >= 0 and not f:
                 out += '+' + str(c)
             else:
                 out += str(c)
             out += latex_str(i)
+            f = False
+        return out
+
+    if isinstance(x, Factor):
+
+        if len(x.c1) > 1:
+            out = '[' + latex_str(x.c1) + ']\cdot['
+        else:
+            out = latex_str(x.c1) + '\cdot['
+
+        out += latex_str(x.c2) + ']'
+
         return out
 
     if isinstance(x, list):
