@@ -1,5 +1,6 @@
 from .index import Index
 import numpy as np
+from itertools import permutations
 import copy
 
 class Tensor:
@@ -242,6 +243,10 @@ class Tensor:
 
         return space_string
 
+    def equivalent_forms(self):
+
+        return Collection() + self.copy()
+
 class Fock(Tensor):
 
     # Object that represents a Fock matrix 
@@ -322,6 +327,16 @@ class Fock(Tensor):
                 return Fock(q, p)
             else:
                 raise NameError('No standard form found for {}'.format(self))
+
+    def equivalent_forms(self):
+
+        p, q = self.idx
+
+        out = Collection()
+        out += Fock(p,q)
+        out += Fock(q,p)
+
+        return out
 
 class ERI(Tensor):
 
@@ -433,17 +448,17 @@ class ERI(Tensor):
 
         # Return a list with all possible permutations of the ERI.
 
-        out = []
+        out = Collection()
         i,j,k,l = self.idx
 
-        out.append(ERI(i,j,k,l))
-        out.append(ERI(j,i,l,k))
-        out.append(ERI(k,l,i,j))
-        out.append(ERI(l,k,j,i))
-        out.append(ERI(k,j,i,l))
-        out.append(ERI(l,i,j,k))
-        out.append(ERI(i,l,k,j))
-        out.append(ERI(j,k,l,i))
+        out += ERI(i,j,k,l)
+        out += ERI(j,i,l,k)
+        out += ERI(k,l,i,j)
+        out += ERI(l,k,j,i)
+        out += ERI(k,j,i,l)
+        out += ERI(l,i,j,k)
+        out += ERI(i,l,k,j)
+        out += ERI(j,k,l,i)
 
         return out
 
@@ -607,6 +622,37 @@ class Amplitude(Tensor):
         idx = new_holes + new_par
         return factor*Amplitude(*idx)
 
+    def transpose_columns(self, transposition_list):
+
+        # Return a copy of the Amplitude where the transposition given (as a list) was applied
+        # e.g. T(ij,ab).transpose_columns([1,0,3,2]) = T(ji,ba)
+
+        new_holes = []
+        new_par = []
+
+        for i in transposition_list:
+            new_holes.append(self.idx[i])
+            new_par.append(self.idx[i+self.rank])
+
+        new_idx = new_holes + new_par
+        return Amplitude(*new_idx)
+
+    def equivalent_forms(self):
+
+        out = Collection()
+
+        perms = list(permutations(range(self.rank)))
+
+        if Tensor.rhf:
+            for p in perms:
+                new = self.transpose_columns(p)
+                out += new + new.flip()
+        else:
+            for p in perms:
+                out += self.transpose_columns(p)
+
+        return out
+        
 class Collection:
 
     # Object to represent a sum of terms and Contractions
@@ -796,19 +842,27 @@ class Collection:
                 out += c*X
         return out
 
-    def simplify(self):
+    def simplify(self, show_progress=False):
+        if show_progress: print('Expanding equation...')
         out = self.expand()
+        if show_progress: print('Adapting Spin...')
         out = out.adapt()
         l = len(out)
 
         i = 0
         j = 0
+        if show_progress: print('Summing up equivalent terms...')
         for i in range(l):
             t1 = out.terms[i]
             c1 = out.coef[i]
+            if c1 == 0:
+                continue
+
             for j in range(i+1,l):
                 t2 = out.terms[j]
                 c2 = out.coef[j]
+                if c2 == 0:
+                    continue
                         
                 if isinstance(t1, Contraction) and isinstance(t2, Contraction):
                     if t1.isequivalent(t2):
@@ -818,9 +872,12 @@ class Collection:
                 elif t1 == t2:
                     out.coef[i] += c2
                     out.coef[j] = 0
+
+            if show_progress: print('Progress {:<2.1f}%'.format(100*i/l))
         
         # Clean up zeros
         
+        if show_progress: print('Cleaning up zeros')
         npC = np.array(out.coef)
         npT = np.array(out.terms)
 
@@ -906,6 +963,7 @@ class Contraction:
 
         self.int = inter
         self.ext = ext
+        self.idx = ext
         self.contracting = list(argv)
         self.sort()
         self.spin_free = spin_free
@@ -1027,9 +1085,12 @@ class Contraction:
             newcontracting.append(newC)
         
         return Contraction.spin_free_contract(*newcontracting)
-        
+                
 
     def isequivalent(self, other):
+
+        if not Tensor.rhf:
+            raise NameError('UHF case not implemented yet :(')  
 
         # Test if this contraction is equivalent to another, considering permutation symmetric, dummy indices etc
 
@@ -1037,33 +1098,22 @@ class Contraction:
         if type(other) != Contraction:
             return False
         
-        contain_ERI = False
-        for C1, C2 in zip(self.contracting, other.contracting):
-            if type(C1) != type(C2):
-                return False
-            if type(C1) == ERI:
-                contain_ERI = True
-                ERI2 = C2
-
         if len(other.contracting) != len(self.contracting):
             return False
 
-        if not Tensor.rhf:
-            raise NameError('UHF case not implemented yet :(')  
+        for C1, C2 in zip(self.contracting, other.contracting):
+            if type(C1) != type(C2):
+                return False
+            elif type(C1) == Amplitude:
+                if C1.rank != C2.rank:
+                    return False
 
-        if contain_ERI:
-            O = Contraction.spin_free_contract(*other.contracting)
-            i = other.contracting.index(ERI2)
-    
-            for V in ERI2.equivalent_forms():
-                O.contracting[i] = V
-                if self.sub_dummies() == O.sub_dummies():
-                    return True
-            return False
-        
-        else:
-            return self.sub_dummies() == other.sub_dummies()
-            
+        self_sub_dummies = self.sub_dummies()
+        for other_equiv in other.equivalent_forms():
+            if self_sub_dummies == other_equiv.sub_dummies():
+                return True
+
+        return False
 
     def adapt(self):
 
@@ -1148,3 +1198,16 @@ class Contraction:
         if self.spin_free:
             return Contraction.spin_free_contract(*newcontracting)
         return Contraction.contract(*newcontracting)
+
+    def equivalent_forms(self):
+
+        out = self.contracting[0].equivalent_forms()
+        if self.spin_free:
+            for X in self.contracting[1:]:
+                out = out**X.equivalent_forms()
+        else:
+            for X in self.contracting[1:]:
+                out = out*X.equivalent_forms()
+
+        return out
+

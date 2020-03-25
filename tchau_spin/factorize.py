@@ -25,20 +25,20 @@ class Factor:
             # If index is in ignore it means that it has already been accounted for or it is not valid for factorization
             if i in ignore:
                 continue
-            print('\nTrying to factorize {}'.format(X))
+            if verbose: print('\nTrying to factorize {}'.format(X))
 
             # Check if it is a Contraction
             # If not, append the object to the output with the coefficient
             if not isinstance(X, Contraction):
                 out += eq.coef[i]*X
-                print('Not a contraction')
+                if verbose: print('Not a contraction')
                 continue
 
             V1 = X.get_ERI()
             if V1 == None:
                 # If the contraction does not have a ERI, just append it to the output
                 out += eq.coef[i]*X
-                print('No ERI')
+                if verbose: print('No ERI')
                 continue
 
             first_match = True
@@ -47,14 +47,14 @@ class Factor:
                 if i+j+1 in ignore:
                     continue
 
-                print('Comparing with {}'.format(Y))
+                if verbose: print('Comparing with {}'.format(Y))
 
                 # Check if it is a Contraction
                 # If not, append the object to the output with the coefficient
                 if not isinstance(Y, Contraction):
                     out += eq.coef[i+j+1]*Y
                     ignore.append(i+j+1)
-                    print('Not a contraction')
+                    if verbose: print('Not a contraction')
                     continue
 
                 V2 = Y.get_ERI()
@@ -62,14 +62,14 @@ class Factor:
                     # If the contraction does not have a ERI, just append it to the output
                     out += eq.coef[i+j+1]*Y
                     ignore.append(i+j+1)
-                    print('No ERI')
+                    if verbose: print('No ERI')
                     continue
 
                 # Test if the ERI within the two contractions is the same
                 if V1 in V2.equivalent_forms():
-                    print(i+j+1)
+                    if verbose: print(i+j+1)
                     ignore.append(i+j+1)
-                    print('First Match!')
+                    if verbose: print('First Match!')
                     c2 = Y.remove(V2)
 
                     # If this is the first match, create a new factor
@@ -80,12 +80,12 @@ class Factor:
 
                     # If this is another match, append the new terms to the existing factor
                     else:
-                        print('New Match!')
+                        if verbose: print('New Match!')
                         newfactor.c2 += eq.coef[i+j+1]*c2
 
             # If no match has been found, just append the contraction back into the output
             if first_match:
-                print('No match')
+                if verbose: print('No match')
                 out += eq.coef[i]*X
             else:
                 out +=  newfactor
@@ -98,6 +98,10 @@ class Factor:
 
         self.c1 = 1*c1
         self.c2 = 1*c2
+        if len(self.c1) > len(self.c2):
+            hold = self.c1
+            self.c1 = self.c2
+            self.c2 = hold
 
     def __str__(self):
 
