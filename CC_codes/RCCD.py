@@ -12,8 +12,9 @@ def update_energy(T2, Voovv):
     # See the getting_CCD.ipynb notebook
 
     CC_energy = 0
-    CC_energy -= np.einsum('lkcd, klcd -> ', T2, Voovv, optimize = 'optimal')
-    CC_energy += 2.0*np.einsum('klcd, klcd -> ', T2, Voovv, optimize = 'optimal')
+    B_OoVv = -1.0*copy.deepcopy(T2)
+    B_OoVv += 2.0*T2.transpose(1,0,2,3)
+    CC_energy += np.einsum('lkcd, klcd -> ', B_OoVv, Voovv, optimize = 'optimal')
     return CC_energy
 
 def update_amp(T2, f, V, D, info):
@@ -23,47 +24,34 @@ def update_amp(T2, f, V, D, info):
 
     newT2 = np.zeros((info['ndocc'],info['ndocc'],info['nvir'],info['nvir']))
 
+    # Equations from Tchau-spin
+
     newT2 += Voovv
-    newT2 += np.einsum('cb, ijac -> ijab', fock_VV, T2, optimize = 'optimal')
-    newT2 -= np.einsum('ik, kjab -> ijab', fock_OO, T2, optimize = 'optimal')
-    newT2 -= np.einsum('jk, ikab -> ijab', fock_OO, T2, optimize = 'optimal')
-    newT2 += np.einsum('ca, ijcb -> ijab', fock_VV, T2, optimize = 'optimal')
     newT2 += np.einsum('ijcd, cdab -> ijab', T2, Vvvvv, optimize = 'optimal')
-    newT2 += 2.0*np.einsum('ikac, kjcb -> ijab', T2, Voovv, optimize = 'optimal')
-    newT2 -= np.einsum('kjac, ickb -> ijab', T2, Vovov, optimize = 'optimal')
-    newT2 -= np.einsum('kjbc, kica -> ijab', T2, Voovv, optimize = 'optimal')
-    newT2 += np.einsum('jkbc, kica -> ijab', T2, Voovv, optimize = 'optimal')
-    newT2 += np.einsum('kjcb, kica -> ijab', T2, Voovv, optimize = 'optimal')
-    newT2 -= np.einsum('kjcb, icka -> ijab', T2, Vovov, optimize = 'optimal')
     newT2 += np.einsum('klab, ijkl -> ijab', T2, Voooo, optimize = 'optimal')
-    newT2 -= np.einsum('ikac, jckb -> ijab', T2, Vovov, optimize = 'optimal')
-    newT2 -= np.einsum('kiac, kjcb -> ijab', T2, Voovv, optimize = 'optimal')
-    newT2 -= np.einsum('ikcb, jcka -> ijab', T2, Vovov, optimize = 'optimal')
     newT2 += np.einsum('kjac, ildb, lkcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
-    newT2 += np.einsum('ijcd, klab, klcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
-    newT2 += -2.0*np.einsum('ikac, ljbd, klcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
-    newT2 += np.einsum('kiac, ljdb, lkcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
-    newT2 -= np.einsum('ijac, lkdb, klcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
-    newT2 += np.einsum('ikac, ljbd, lkcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
-    newT2 += 0.5*np.einsum('jkcd, ilab, klcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
-    newT2 -= np.einsum('ikac, jlbd, lkcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
-    newT2 -= np.einsum('ikac, ljdb, lkcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
-    newT2 += 2.0*np.einsum('ikac, ljdb, klcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
-    newT2 += -1.5*np.einsum('ikcd, ljab, lkcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
-    newT2 += -1.5*np.einsum('kjcd, ilab, klcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
+    newT2 += -2.0*np.einsum('ijac, klbd, klcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
     newT2 += np.einsum('ijac, lkbd, klcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
-    newT2 += 0.5*np.einsum('kjcd, ilab, lkcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
-    newT2 += 0.5*np.einsum('kicd, ljab, lkcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
-    newT2 -= np.einsum('kiac, jlbd, klcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
-    newT2 += -0.5*np.einsum('kicd, ljab, klcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
+    newT2 += -2.0*np.einsum('kiac, jlbd, klcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
     newT2 += np.einsum('kiac, ljbd, klcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
+    newT2 += np.einsum('ikac, ljbd, lkcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
+    newT2 += 4.0*np.einsum('ikac, jlbd, klcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
+    newT2 += -2.0*np.einsum('ikac, ljbd, klcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
     newT2 += np.einsum('klac, ijdb, klcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
-    newT2 += 0.5*np.einsum('ikcd, ljab, klcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
-    newT2 += 2.0*np.einsum('ikac, jlbd, klcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
-    newT2 -= np.einsum('ijac, klbd, klcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
-    newT2 += -0.5*np.einsum('jkcd, ilab, lkcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
     newT2 += -2.0*np.einsum('lkac, ijdb, klcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
-    newT2 -= np.einsum('kiac, ljdb, klcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
+    newT2 += np.einsum('ijdc, lkab, klcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
+    newT2 += np.einsum('kiac, ljdb, lkcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
+    newT2 += -2.0*np.einsum('ikac, jlbd, lkcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
+    P_OOVV = 1.0*np.einsum('cb, ijac -> ijab', fock_VV, T2, optimize = 'optimal')
+    P_OOVV += -1.0*np.einsum('ik, kjab -> ijab', fock_OO, T2, optimize = 'optimal')
+    P_OOVV += 2.0*np.einsum('jkbc, kica -> ijab', T2, Voovv, optimize = 'optimal')
+    P_OOVV += -1.0*np.einsum('kjbc, kica -> ijab', T2, Voovv, optimize = 'optimal')
+    P_OOVV += -1.0*np.einsum('ikcb, jcka -> ijab', T2, Vovov, optimize = 'optimal')
+    P_OOVV += -1.0*np.einsum('ikac, jckb -> ijab', T2, Vovov, optimize = 'optimal')
+    P_OOVV += 1.0*np.einsum('jkcd, ilab, klcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
+    P_OOVV += -2.0*np.einsum('kjcd, ilab, klcd -> ijab', T2, T2, Voovv, optimize = 'optimal')
+    
+    newT2 += P_OOVV + P_OOVV.transpose(1,0,3,2)
 
     newT2 *= D
 

@@ -1,6 +1,7 @@
 from .index import Index
 from .tensor import *
 from .factorize import Factor
+from .permutation import Permutation
 from IPython.display import display, Math
 
 def platex(x):
@@ -110,6 +111,16 @@ def latex_str(x):
             out = latex_str(x.c1) + '\cdot['
 
         out += latex_str(x.c2) + ']'
+
+        return out
+
+    if isinstance(x, Permutation):
+
+        out  = ''
+        for p in x.permuting_pairs:
+            out += 'P^+_{' + '{}{}'.format(*p) + '}'
+
+        out += '\\left\{' + latex_str(x.permuting_eq) + '\\right\}'
 
         return out
 

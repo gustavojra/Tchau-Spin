@@ -1,5 +1,6 @@
 from .tensor import *
 from .factorize import Factor
+from .permutation import Permutation
 
 class process_eq:
 
@@ -88,9 +89,14 @@ class process_eq:
 
             return out
 
+        else:
+            raise TypeError('Cannot write einsum from {}'.format(X))
+
     def find_external_indexes(self, X):
 
-        # From a Collection, find external indexes
+        # From a Collection, find external indexes based on the first term
+        # output is a string with names of the indexes, e.g. 'ijab'
+
         if isinstance(X.terms[0], Tensor):
             out = ''
             for i in X.terms[0].idx:
@@ -103,10 +109,11 @@ class process_eq:
 
         return out
 
-    def intermediate_from_collection(self, X, name):
+    def intermediate_from_collection(self, X, name, local_idx=''):
 
-        # Determine 'local' external indexes from the first element of the Collection
-        local_idx = self.find_external_indexes(X)
+        if local_idx == '':
+            # Determine 'local' external indexes from the first element of the Collection
+            local_idx = self.find_external_indexes(X)
         if isinstance(X.terms[0], Tensor):
             out = name + ' = ' + str(X.coef[0]) + '*copy.deepcopy(' + self.get_name(X.terms[0]) + ')\n'
 
@@ -152,25 +159,54 @@ class process_eq:
         
         for element, coef in zip(self.eq.terms, self.eq.coef):
 
-            if not isinstance(element, Factor):
+            # If the term is a factor
+            if isinstance(element, Factor):
+                
+                if len(element.c1) == 1:
+                    A = element.c1.terms[0]
+                else:
+                    # Create a intermediate array to hold the result factorized (left) terms
+                    A = Tensor('A', *elements.c2.terms[0].idx)
+                    out += self.intermediate_from_collection(element.c1, self.get_name(A))
+
+                # Create a intermediate array to hold the result factorized (right) terms
+                B = Tensor('B', *element.c2.terms[0].idx)
+                out += self.intermediate_from_collection(element.c2, self.get_name(B))
+                out += self.name + ' += ' + self.einsum_from_contraction(A**B, self.ext_string) + '\n'
+
+            elif isinstance(element, Permutation):
+
+                # Create a intermediate array to hold the result before the permutation
+
+                # Save indexes of the first elements (which will represent the external indexes of the whole collection)
+                P = Tensor('P', *element.permuting_eq.terms[0].idx)
+                out += self.intermediate_from_collection(element.permuting_eq, self.get_name(P), local_idx=self.ext_string.lower()) + '\n'
+
+                # Create a transpose list, e.g. [0,1,2,3] 
+                transpose = list(range(len(element.permuting_eq.terms[0].idx)))
+
+                idx_string = self.ext_string.lower()
+                for p in element.permuting_pairs:
+
+                    p1 = idx_string.index(p[0].name)
+                    p2 = idx_string.index(p[1].name)
+
+                    transpose[p1], transpose[p2] = transpose[p2], transpose[p1]
+
+                out += self.name + ' += ' + self.get_name(P) + ' + ' + self.get_name(P) + '.transpose('
+                for t in transpose:
+                    out += str(t) + ','
+
+                out = out[:-1] + ')\n'
+
+            # Lastly, if the term is a Contraction or Tensor
+            else:
                 if coef == 1:
                     out += self.name + ' += ' + self.einsum_from_contraction(element, self.ext_string) + '\n'
                 elif coef == -1:
                     out += self.name + ' -= ' + self.einsum_from_contraction(element, self.ext_string) + '\n'
                 else:
                     out += self.name + ' += ' + str(coef) + '*' + self.einsum_from_contraction(element, self.ext_string) + '\n'
-            else:
-
-                
-                if len(element.c1) == 1:
-                    A = element.c1.terms[0]
-                else:
-                    A = Tensor('A', *elements.c2.terms[0].idx)
-                    out += self.intermediate_from_collection(element.c1, self.get_name(A))
-
-                B = Tensor('B', *element.c2.terms[0].idx)
-                out += self.intermediate_from_collection(element.c2, self.get_name(B))
-                out += self.name + ' += ' + self.einsum_from_contraction(A**B, self.ext_string) + '\n'
 
         # If no output was given, nothing will be saved to disk
         if output != '':

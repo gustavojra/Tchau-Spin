@@ -136,7 +136,7 @@ class Factor:
 
         if type(other) in [int, float]:
             
-            return 3*(Collection() + self)
+            return other*(Collection() + self)
 
         else:
 

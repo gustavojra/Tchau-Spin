@@ -1155,18 +1155,22 @@ class Contraction:
         
         # Return a copy of itself where indexes x and y were permuted
         # Can only permute external indexes
+        # Permutation based on index name, not spin
 
-        newcontracting = self.contracting[:]
+        newcontracting = copy.deepcopy(self.contracting)
 
-        if x not in self.ext or y not in self.ext:
-            raise NameError('Indexes {} and {} not external to contraction {}'.format(x,y,self))
+        if x.name not in [z.name for z in self.ext]: 
+            raise NameError('Index {} not external to contraction {}'.format(x,self))
+
+        if y.name not in [z.name for z in self.ext]: 
+            raise NameError('Index {} not external to contraction {}'.format(y,self))
 
         for C in newcontracting:
             for i, idx in enumerate(C.idx):
-                if idx == x:
-                    C.idx[i] = y if y.spin == x.spin else y.flip()
-                elif idx == y:
-                    C.idx[i] = x if y.spin == x.spin else x.flip()
+                if idx.name == x.name:
+                    C.idx[i].name = y.name #if y.spin == x.spin else y.flip()
+                elif idx.name == y.name:
+                    C.idx[i].name = x.name #if y.spin == x.spin else x.flip()
 
         if self.spin_free:
             return Contraction.spin_free_contract(*newcontracting)
