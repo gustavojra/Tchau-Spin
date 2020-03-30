@@ -3,7 +3,9 @@ from .tensor import *
 class Permutation:
 
     @staticmethod
-    def find_permutations(equation, *perms, show_progress=False):
+    def find_permutations(equation, *perms, verbose=False):
+
+        vprint = print if verbose else lambda *a, **k: None
 
         if not Tensor.rhf:
             raise NameError('UHF permutations not implemented')
@@ -18,7 +20,12 @@ class Permutation:
         out = Collection()
         perm_collection = Collection() 
 
-        if show_progress: print('Looking for permutation symmetries...')
+        vprint('\nLooking for permutation of', end= ' ')
+        if verbose:
+            for p in perms:
+                vprint('({},{})'.format(p[0], p[1]), end = ' ')
+            print('\n')
+
         for i in range(l):
             t1 = equation.terms[i]
             c1 = equation.coef[i]
@@ -39,11 +46,12 @@ class Permutation:
                     continue
                         
                 if t1.isequivalent(t2) and c1 == c2:
+                    vprint('\nPermutation pair found: {} -> {}'.format(equation.terms[i], t2))
                     perm_collection += c1*equation.terms[i]
                     equation.coef[i] = 0
                     equation.coef[j] = 0
 
-            if show_progress: print('Progress {:<2.1f}%'.format(100*i/l))
+            vprint('Progress {:<2.1f}%'.format(100*i/l))
 
         out += equation
         if len(perm_collection) != 0:
@@ -51,7 +59,7 @@ class Permutation:
         
         # Clean up zeros
         
-        if show_progress: print('Cleaning up zeros')
+        vprint('\nCleaning up zeros')
         npC = np.array(out.coef)
         npT = np.array(out.terms)
 

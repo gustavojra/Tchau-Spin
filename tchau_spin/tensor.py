@@ -304,26 +304,28 @@ class Fock(Tensor):
         else:
             return self.copy()
 
-    def adapt_space(self, verbose = False):
+    def adapt_space(self, verbose=False):
 
         # Use symmetry properties to put the Fock matrix in a standand form with respect to occupancy space
         # i.e. vo is transformed into ov. Spin is not considered.
 
-        if verbose: print('\nSpace adapting {}'.format(self))
+        vprint = print if verbose else lambda *a, **k: None
+
+        vprint('\nSpace adapting {}'.format(self))
         space_string = self.space()
 
-        if verbose: print('Current Space String: {}'.format(space_string))
+        vprint('Current Space String: {}'.format(space_string))
 
         # If the Fock is alredy in standard form, return a copy
         if space_string in ['oo', 'vv', 'ov']:
-            if verbose: print('Already in standard form')
+            vprint('Already in standard form')
             return self.copy()
 
         # If not, expand in all possible forms and search for the first one that is in standard form 
         else:
             if space_string == 'vo':
                 p, q = self.idx
-                if verbose: print('Flipping indices!')
+                vprint('Flipping indices!')
                 return Fock(q, p)
             else:
                 raise NameError('No standard form found for {}'.format(self))
@@ -402,6 +404,8 @@ class ERI(Tensor):
         # Use symmetry properties to put the ERI in a standand form with respect to occupancy space
         # e.g. oovo is transformed into ooov. Spin is not considered.
 
+        vprint = print if verbose else lambda *a, **k: None
+
         standard = [
             'oooo',
             'ooov',
@@ -410,24 +414,24 @@ class ERI(Tensor):
             'ovvv',
             'vvvv']
 
-        if verbose: print('\nSpace adapting {}'.format(self))
+        vprint('\nSpace adapting {}'.format(self))
         space_string = self.space()
 
-        if verbose: print('Current Space String: {}'.format(space_string))
+        vprint('Current Space String: {}'.format(space_string))
 
         # If the ERI is alredy in standard form, return a copy
         if space_string in standard:
-            if verbose: print('Already in standard form')
+            vprint('Already in standard form')
             return self.copy()
 
         # If not, expand in all possible forms and search for the first one that is in standard form 
         else:
             eqforms  = self.equivalent_forms()
-            if verbose: print('Checking equivalent forms')
+            vprint('Checking equivalent forms')
             for X in eqforms:
-                if verbose: print('Equivalent form {}. Space string: {}'.format(X, X.space()))
+                vprint('Equivalent form {}. Space string: {}'.format(X, X.space()))
                 if X.space() in standard:
-                    if verbose: print('Standard form found!')
+                    vprint('Standard form found!')
                     return X.copy()
             raise NameError('No standard form found for {}'.format(self))
 
@@ -639,14 +643,22 @@ class Amplitude(Tensor):
 
     def equivalent_forms(self):
 
+        # Return equivalent forms of the Amplitude by permuting columns
+
         out = Collection()
 
         perms = list(permutations(range(self.rank)))
 
-        if Tensor.rhf:
+        # For RHF, non standard cases like T(jI,bA) can be made T(Ji,Ba) by spin flip. This is done if the first index is beta
+        # This is not gonna be done if the tensor has odd rank because in that case spin flip generates a different spin case:
+        # e.g. (a,b,a) spin case becomes (b,a,b) by spin flipping. No permutation can take this back to the original spin case
+        if Tensor.rhf and self.rank % 2 == 0:
             for p in perms:
                 new = self.transpose_columns(p)
-                out += new + new.flip()
+                if new.idx[0].spin == 'beta':
+                    out += new.flip()
+                else:
+                    out += new
         else:
             for p in perms:
                 out += self.transpose_columns(p)
@@ -695,6 +707,8 @@ class Collection:
                     elif type(Y) == Tensor:
                         p += len(Y.idx)/2
                 points.append(p)
+            else:
+                points.append(100)
 
         s = np.argsort(points)
 
@@ -842,16 +856,19 @@ class Collection:
                 out += c*X
         return out
 
-    def simplify(self, show_progress=False):
-        if show_progress: print('Expanding equation...')
+    def simplify(self, verbose=False):
+
+        vprint = print if verbose else lambda *a, **k: None
+
+        vprint('Expanding equation...')
         out = self.expand()
-        if show_progress: print('Adapting Spin...')
+        vprint('Adapting Spin...')
         out = out.adapt()
         l = len(out)
 
         i = 0
         j = 0
-        if show_progress: print('Summing up equivalent terms...')
+        vprint('Summing up equivalent terms...')
         for i in range(l):
             t1 = out.terms[i]
             c1 = out.coef[i]
@@ -873,11 +890,11 @@ class Collection:
                     out.coef[i] += c2
                     out.coef[j] = 0
 
-            if show_progress: print('Progress {:<2.1f}%'.format(100*i/l))
+            vprint('Progress {:<2.1f}%'.format(100*i/l))
         
         # Clean up zeros
         
-        if show_progress: print('Cleaning up zeros')
+        vprint('Cleaning up zeros')
         npC = np.array(out.coef)
         npT = np.array(out.terms)
 
@@ -1010,6 +1027,8 @@ class Contraction:
 
     def __str__(self):
 
+        # String representation of the Contraction
+
         out = ''
         for X in self.contracting:
             out += X.repr + '*'
@@ -1056,6 +1075,7 @@ class Contraction:
     def sub_dummies(self):
 
         # Currently assuming spin free and RHF !!!!
+        # Be careful using this for comparisons of spin-free contractions
 
         label = 1
         Map = {}
@@ -1082,6 +1102,8 @@ class Contraction:
                         newC.idx[i] = Index(str(label), spin='alpha')
                         Map[idx.name] = Index(str(label), spin='alpha')
                         label += 1
+            # Update the string representation of the new Tensor
+            newC.create_repr()
             newcontracting.append(newC)
         
         return Contraction.spin_free_contract(*newcontracting)
@@ -1171,6 +1193,8 @@ class Contraction:
                     C.idx[i].name = y.name #if y.spin == x.spin else y.flip()
                 elif idx.name == y.name:
                     C.idx[i].name = x.name #if y.spin == x.spin else x.flip()
+            # Update string representation
+            C.create_repr()
 
         if self.spin_free:
             return Contraction.spin_free_contract(*newcontracting)
