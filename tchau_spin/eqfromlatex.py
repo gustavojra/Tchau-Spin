@@ -10,7 +10,7 @@ tensor_keys = {
     'T' : Amplitude
 }
 
-def eqfromlatex(inp, index_keys, verbose=False):
+def eqfromlatex(inp, index_keys, verbose=False, antisymmetric=True):
 
     # Generate a Collection object with a latex equation given in the
     # string 'inp' 
@@ -25,7 +25,10 @@ def eqfromlatex(inp, index_keys, verbose=False):
     # Convert tensor names
     out = re.sub('f\^', 'f', out)
     out = re.sub('t\^', 'T', out)
-    out = re.sub('v\^', 'A', out)
+    if antisymmetric:
+        out = re.sub('v\^', 'A', out)
+    else:
+        out = re.sub('v\^', 'V', out)
     # Remove fractions
     out = re.sub('\\\\frac{(.+?)}{(\d+?)}', '(1/\\2)*\\1', out)
 

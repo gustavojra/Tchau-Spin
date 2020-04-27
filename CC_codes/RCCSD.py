@@ -257,7 +257,7 @@ if __name__ == '__main__':
     mol.update_geometry()
 
     psi4.set_options({
-        'basis' : 'sto-3g',
+        'basis' : 'cc-pvtz',
         'scf_type' : 'pk',
         'e_convergence': 1e-12,
         'reference' : 'rhf'})
