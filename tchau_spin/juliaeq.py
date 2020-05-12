@@ -165,15 +165,7 @@ class eq_to_julia:
         # If print_out was set to True, print to screen
         if print_out:
             print(out)
+            return out
 
         else:
             return out
-                    
-
-            
-            
-
-
-
-
-
