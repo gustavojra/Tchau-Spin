@@ -1,6 +1,7 @@
 from .tensor import *
 from .factorize import Factor
 from .permutation import Permutation
+import re
 
 class eq_to_julia:
 
@@ -97,7 +98,82 @@ class eq_to_julia:
 
         return out
 
-    def write_tensorop_out(self, output='', print_out=False):
+    def loop_index_out(self, inp, pulling):
+
+        # Input must be a list of TensorOperations commands
+
+        # Dictionary with Tensors that slices were created already
+        viewd = dict()
+
+        # Output
+        out = []
+
+        # Loop through commands (lines in the input)
+        for comm in inp:
+
+            if comm == '':
+                continue
+
+            # Find tensors in the line (e.g. T2[i,j,a,b])
+            tensors = re.findall(r"(\w+?\[.+?\])", comm)
+
+            # Store new command
+            new_comm = comm
+
+            # Loop through tensors found above.
+            for t in tensors:
+                # Save the tensor by itself (e.g. T2[i,j,a,b]  -> T2)
+                t_solo = re.sub(r'\[([\w,]+?)\]', '', t)
+
+                # Save indexes (e.g. T2[i,j,a,b] -> ['i', 'j', 'a', 'b'])
+                indexes = re.search(r'\[([\w,]+?)\]', t).group(1).split(',')
+
+                # List to store indexes that will be substituted (those given in 'pulling')
+                subs = []
+
+                # idx_braket will store the new indexes (e.g. if you are pulling i,j out [i,j,a,b] becomes
+                #  [a,b])
+                idx_braket = '['
+                for i,ind in enumerate(indexes):
+                    if ind in pulling:
+                        # If a index from pulling is found in the tensor, save into subs list
+                        subs.append((i,ind))
+                    else:
+                        idx_braket += ind + ','
+
+                # If subs list has nothing, it means nothing has to be done to this tensor
+                if len(subs) == 0:
+                    continue
+
+                # Start creating a new name for the tensor. If we pull i and j out
+                # T2[i,j,a,b] will be called T2_1i2j. A slice (view in julia), will be created with this name
+                newt = t_solo + '_'
+                for i,ind in subs:
+                    newt += str(i+1) + ind
+
+                # If the new tensor name is save in viewd, it has been created already. If not, create it
+                if newt not in viewd:
+                    create_view = newt + " = view({},".format(t_solo)
+                    for ind in indexes:
+                        if ind in pulling:
+                            create_view += ind + ','
+                        else:
+                            create_view += ':,'
+                    viewd[newt] = create_view[:-1] + ')'
+
+                newt += idx_braket[:-1] + ']'
+
+                # Replace the command with the new syntax
+                new_comm = new_comm.replace(t, newt)
+
+            # Append the new command to the list
+            out.append(new_comm)
+
+        out = [viewd[k] for k in viewd] + ['\n'] + out
+
+        return out
+
+    def write_tensorop_out(self, output='', print_out=False, pull_index_out = []):
 
         # From the processed collection, write TensorOperations syntax for Julia
 
@@ -156,6 +232,12 @@ class eq_to_julia:
                     out += self.final_name + ' -= ' + self.get_contraction_string(element) + '\n'
                 else:
                     out += self.final_name + ' += ' + str(coef) + '*' + self.get_contraction_string(element) + '\n'
+        
+        # Pull out the desired indexes (to be used as loops)
+
+        if len(pull_index_out) > 0:
+            inp = out.split('\n')
+            out = '\n'.join(self.loop_index_out(inp, pull_index_out))
 
         # If no output was given, nothing will be saved to disk
         if output != '':

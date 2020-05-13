@@ -6,6 +6,8 @@ import time
 import copy
 np.set_printoptions(suppress=True, linewidth=120)
 
+os.environ["MKL_NUM_THREADS"] = "4"
+
 def update_energy(T1, T2, fock_OV, Voovv):
 
     # Note that these equations are obtianed automatically using Sympy and Tchau-Spin.
@@ -225,10 +227,11 @@ def RCCSD(wfn, CC_CONV=6, CC_MAXITER=50, E_CONV=8):
 
     # Start CC iterations
     while abs(dE) > E_LIM or rms > rms_LIM:
-        t = time.time()
         if ite > CC_MAXITER:
             raise NameError('CC equations did not converge')
+        t = time.time()
         T1, T2, r1, r2 = update_amp(T1, T2, f, V, d, D, info)
+        tf = time.time() - t
         rms = max(r1, r2)
         dE = -Ecc
         Ecc = update_energy(T1, T2, f[1], V[2])
@@ -237,7 +240,7 @@ def RCCSD(wfn, CC_CONV=6, CC_MAXITER=50, E_CONV=8):
         print("CC Correlation energy: {:< 15.10f}".format(Ecc))
         print("Energy change:         {:< 15.10f}".format(dE))
         print("Max RMS residue:       {:< 15.10f}".format(rms))
-        print("Time required:         {:< 15.10f}".format(time.time() - t))
+        print("Time required:         {:< 15.10f}".format(tf))
         print('='*37)
         ite += 1
 
@@ -247,7 +250,7 @@ def RCCSD(wfn, CC_CONV=6, CC_MAXITER=50, E_CONV=8):
 
 if __name__ == '__main__':
     
-    psi4.core.be_quiet()
+    #psi4.core.be_quiet()
     mol = psi4.geometry("""
     0 1
     O
@@ -264,5 +267,7 @@ if __name__ == '__main__':
 
     Ehf, wfn = psi4.energy('scf', return_wfn = True)
     RCCSD(wfn, CC_CONV = 8, E_CONV = 12)
+    t = time.time()
     p4 = psi4.energy('ccsd')
+    print(time.time()-t)
     print('Psi4 Energy:   {:<15.10f}'.format(p4))
